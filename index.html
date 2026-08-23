@@ -1,0 +1,1365 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon-180.png">
+<meta name="theme-color" content="#121622">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>DRSTUDY · 研究生工作台 — 科研进度与学术生涯管理</title>
+<style>
+:root{
+  --bg:#121622; --panel:#1b2133; --panel2:#212944; --border:#2e3856;
+  --text:#d8e2f4; --muted:#8898b8; --accent:#8b9cf5; --accent2:#4ec9d4;
+  --indigo:#6f7ef0; --cyan:#4ec9d4; --rose:#e87a9e; --amber:#f0c060; --violet:#b89cf5;
+  --danger:#e05f6f; --ok:#5fcf97; --warn:#f0c060;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:"PingFang SC","Microsoft YaHei","Noto Sans SC",sans-serif;font-size:14px;line-height:1.6;}
+a{color:var(--accent);text-decoration:none;}
+/* ===== 布局 ===== */
+.app{display:flex;min-height:100vh;}
+.sidebar{width:214px;background:var(--panel);border-right:1px solid var(--border);padding:18px 12px;position:fixed;top:0;bottom:0;left:0;overflow-y:auto;z-index:10;}
+.main{margin-left:214px;flex:1;padding:24px 28px 60px;max-width:1240px;}
+.brand{display:flex;align-items:center;gap:10px;padding:6px 8px 16px;border-bottom:1px solid var(--border);margin-bottom:14px;}
+.brand .logo{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,#6f7ef0,#4ec9d4);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;color:#121622;}
+.brand .t1{font-size:16px;font-weight:700;color:#eef2ff;}
+.brand .t2{font-size:11px;color:var(--muted);}
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;color:var(--muted);margin:3px 0;font-size:14px;transition:all .15s;}
+.nav-item:hover{background:var(--panel2);color:var(--text);}
+.nav-item.active{background:linear-gradient(90deg,#26304e,#212944);color:var(--accent);}
+.nav-item .ico{width:20px;text-align:center;}
+.nav-item .badge{margin-left:auto;background:var(--danger);color:#fff;font-size:10px;border-radius:9px;padding:0 6px;min-width:17px;text-align:center;line-height:17px;}
+.nav-sec{font-size:11px;color:#566383;margin:14px 10px 4px;letter-spacing:1px;}
+/* ===== 通用 ===== */
+.page{display:none;}
+.page.active{display:block;animation:fade .25s ease;}
+@keyframes fade{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
+h2{font-size:20px;color:#eef2ff;margin:0 0 6px;display:flex;align-items:center;gap:10px;}
+h2 .sub{font-size:12.5px;color:var(--muted);font-weight:400;}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px 20px;margin:14px 0;}
+.card h3{font-size:15px;color:var(--accent);margin-bottom:10px;display:flex;align-items:center;gap:8px;}
+.card h3 .act{margin-left:auto;}
+.btn{display:inline-flex;align-items:center;gap:6px;background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:7px 14px;cursor:pointer;font-size:13px;transition:all .15s;font-family:inherit;}
+.btn:hover{border-color:var(--accent2);color:var(--accent2);}
+.btn.primary{background:linear-gradient(135deg,#6f7ef0,#5a6ce0);color:#fff;border:none;font-weight:600;}
+.btn.primary:hover{filter:brightness(1.12);}
+.btn.sm{padding:3px 10px;font-size:12px;border-radius:6px;}
+.btn.danger:hover{border-color:var(--danger);color:var(--danger);}
+table{width:100%;border-collapse:collapse;font-size:13px;}
+th{background:var(--panel2);color:var(--accent);padding:9px 10px;text-align:left;border:1px solid var(--border);font-weight:600;white-space:nowrap;}
+td{padding:9px 10px;border:1px solid var(--border);vertical-align:top;}
+tr:hover td{background:#242c46;}
+.tag{display:inline-block;font-size:11px;border-radius:10px;padding:1px 9px;margin:1px 3px 1px 0;white-space:nowrap;}
+.t-green{background:#173d2f;color:#5fcf97;} .t-blue{background:#1c2848;color:#8b9cf5;}
+.t-gold{background:#3a3018;color:#f0c060;} .t-purple{background:#2c2440;color:#b89cf5;}
+.t-red{background:#3a1e24;color:#e87a9e;} .t-gray{background:#28304a;color:#8898b8;}
+.t-cyan{background:#143a3d;color:#4ec9d4;}
+.empty{text-align:center;color:var(--muted);padding:30px 10px;font-size:13px;}
+.muted{color:var(--muted);}
+.mono{font-family:"SF Mono","Consolas","Roboto Mono",monospace;font-size:12px;}
+/* ===== 表单 ===== */
+.form-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;}
+.fg{margin-bottom:10px;}
+.fg.full{grid-column:1/-1;}
+.fg label{display:block;font-size:12px;color:var(--muted);margin-bottom:3px;}
+.fg input,.fg select,.fg textarea{width:100%;background:#0e1320;border:1px solid var(--border);border-radius:7px;color:var(--text);padding:7px 10px;font-size:13px;font-family:inherit;}
+.fg input:focus,.fg select:focus,.fg textarea:focus{outline:none;border-color:var(--accent2);}
+.fg textarea{resize:vertical;min-height:60px;}
+/* ===== 模态框 ===== */
+.modal-mask{display:none;position:fixed;inset:0;background:rgba(8,11,20,.72);z-index:100;align-items:flex-start;justify-content:center;padding:40px 16px;overflow-y:auto;}
+.modal-mask.show{display:flex;}
+.modal{background:var(--panel);border:1px solid var(--border);border-radius:14px;width:100%;max-width:780px;padding:22px 26px;margin-bottom:40px;}
+.modal h3{color:var(--accent);font-size:16px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;}
+.modal .close{cursor:pointer;color:var(--muted);font-size:18px;}
+.modal .close:hover{color:var(--danger);}
+.modal .btn-row{display:flex;gap:10px;justify-content:flex-end;margin-top:16px;}
+/* ===== 工作台 ===== */
+.hero{background:linear-gradient(150deg,#222a48,#1a2138);border:1px solid var(--border);border-radius:14px;padding:22px 26px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px;}
+.hero .hello{font-size:19px;color:#eef2ff;font-weight:600;}
+.hero .hello small{display:block;font-size:12.5px;color:var(--muted);font-weight:400;margin-top:4px;}
+.hero .ring{width:54px;height:54px;border-radius:50%;background:conic-gradient(var(--accent2) var(--p,0%),#2a3354 0);display:flex;align-items:center;justify-content:center;}
+.hero .ring .inner{width:42px;height:42px;border-radius:50%;background:#1a2138;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--accent2);}
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:14px 0;}
+.stat{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px 16px;}
+.stat .num{font-size:26px;font-weight:700;}
+.stat .lbl{font-size:12px;color:var(--muted);}
+.stat.c1 .num{color:var(--accent);} .stat.c2 .num{color:var(--accent2);} .stat.c3 .num{color:var(--ok);} .stat.c4 .num{color:var(--violet);} .stat.c5 .num{color:var(--rose);}
+.dd-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px;}
+.dd{background:var(--panel2);border:1px solid var(--border);border-left:4px solid var(--accent);border-radius:9px;padding:11px 14px;}
+.dd .t{font-size:13.5px;color:#eef2ff;font-weight:600;}
+.dd .m{font-size:11.5px;color:var(--muted);margin-top:3px;}
+.dd .days{font-size:12px;font-weight:700;margin-top:4px;}
+.dd.urgent{border-left-color:var(--danger);} .dd.urgent .days{color:var(--danger);}
+.dd.soon{border-left-color:var(--warn);} .dd.soon .days{color:var(--warn);}
+.dd.far .days{color:var(--ok);}
+/* Agent 提示 */
+.agent-box{background:linear-gradient(150deg,#1c2640,#1b2133);border:1px solid #2d3e6e;border-radius:12px;padding:16px 20px;margin:14px 0;}
+.agent-head{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+.agent-av{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#6f7ef0,#4ec9d4);display:flex;align-items:center;justify-content:center;font-size:16px;color:#121622;font-weight:700;}
+.agent-head b{color:var(--accent2);font-size:14.5px;}
+.agent-head small{color:var(--muted);font-size:11.5px;}
+.sug{display:flex;gap:10px;padding:8px 0;border-bottom:1px dashed #2a3a58;align-items:flex-start;}
+.sug:last-child{border-bottom:none;}
+.sug .lvl{font-size:11px;border-radius:5px;padding:1px 7px;white-space:nowrap;margin-top:2px;}
+.sug.high .lvl{background:#3a1e24;color:#e87a9e;}
+.sug.mid .lvl{background:#3a3018;color:#f0c060;}
+.sug.low .lvl{background:#173d2f;color:#5fcf97;}
+.sug .txt{font-size:13px;color:var(--text);}
+/* 进度条 */
+.bar{height:8px;background:#0e1320;border-radius:5px;overflow:hidden;border:1px solid var(--border);}
+.bar .fill{height:100%;border-radius:5px;background:linear-gradient(90deg,#6f7ef0,#4ec9d4);transition:width .4s;}
+.bar .fill.warn{background:linear-gradient(90deg,#f0c060,#e8a040);}
+.bar .fill.danger{background:linear-gradient(90deg,#e05f6f,#c04050);}
+/* 待办 */
+.todo-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:9px;margin:7px 0;background:var(--panel);}
+.todo-item.done{opacity:.5;}
+.todo-item.done .tt{text-decoration:line-through;}
+.todo-item.overdue{border-color:var(--danger);}
+.ck{width:17px;height:17px;cursor:pointer;accent-color:var(--accent2);flex-shrink:0;}
+.tt{flex:1;font-size:13.5px;}
+.tt small{display:block;color:var(--muted);font-size:11.5px;margin-top:2px;}
+.filter-row{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0;}
+.filter-row .chip{font-size:12px;padding:4px 13px;border-radius:15px;border:1px solid var(--border);color:var(--muted);cursor:pointer;}
+.filter-row .chip.on{background:#26304e;color:var(--accent);border-color:var(--accent);}
+/* 简历 */
+.cv-doc{background:#f7f8fc;color:#222;border-radius:10px;padding:36px 44px;font-family:"Songti SC","SimSun",serif;line-height:1.8;font-size:13.5px;max-height:72vh;overflow-y:auto;}
+.cv-doc h1{font-size:21px;text-align:center;color:#1a1a2e;margin-bottom:4px;}
+.cv-doc .cvsub{text-align:center;font-size:12px;color:#555;border-bottom:2px solid #1a1a2e;padding-bottom:10px;margin-bottom:14px;}
+.cv-doc h2{font-size:15px;color:#1a1a2e;border-left:none;border-bottom:1px solid #888;padding-bottom:3px;margin:16px 0 8px;}
+.cv-doc p,.cv-doc li{font-size:13px;color:#333;}
+.cv-doc ul{margin-left:20px;}
+.cv-doc .cvrow{display:flex;justify-content:space-between;}
+.tips{font-size:12px;color:var(--muted);background:#1a2138;border:1px dashed #3d4c6e;border-radius:9px;padding:10px 14px;margin:10px 0;}
+/* keypoint 列表 */
+.kp{background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin:5px 0;font-size:12.5px;display:flex;gap:8px;align-items:flex-start;}
+.kp .del{cursor:pointer;color:var(--muted);margin-left:auto;}
+.kp .del:hover{color:var(--danger);}
+/* 文献卡片 */
+.lit-card{background:var(--panel);border:1px solid var(--border);border-radius:11px;padding:15px 18px;margin:10px 0;}
+.lit-card .lh{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
+.lit-card .lt{font-size:14.5px;color:#eef2ff;font-weight:600;cursor:pointer;}
+.lit-card .lt:hover{color:var(--accent2);}
+.lit-card .lm{font-size:12px;color:var(--muted);margin-top:3px;}
+.lit-card .lb{margin-top:8px;}
+.lit-card .notes{font-size:12.5px;color:var(--text);background:var(--panel2);border-radius:7px;padding:8px 11px;margin-top:8px;white-space:pre-wrap;}
+.lit-card .kp-list{margin-top:8px;}
+/* 汇报时间线 */
+.tl{position:relative;padding-left:22px;}
+.tl::before{content:'';position:absolute;left:6px;top:6px;bottom:6px;width:2px;background:var(--border);}
+.tl-item{position:relative;margin-bottom:18px;}
+.tl-item::before{content:'';position:absolute;left:-19px;top:5px;width:10px;height:10px;border-radius:50%;background:var(--accent);border:2px solid var(--panel);}
+.tl-item .date{font-size:12px;color:var(--muted);}
+.tl-item .body{background:var(--panel2);border:1px solid var(--border);border-radius:9px;padding:10px 14px;margin-top:5px;font-size:13px;}
+.tl-item .ai{font-size:12px;color:var(--warn);margin-top:6px;}
+/* toast */
+#toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%);background:#26304e;border:1px solid var(--accent2);color:var(--text);padding:10px 22px;border-radius:10px;font-size:13px;display:none;z-index:200;box-shadow:0 6px 24px rgba(0,0,0,.4);}
+/* 数据管理 */
+.dm-btn{display:flex;flex-direction:column;align-items:center;gap:8px;padding:20px;border:1px solid var(--border);border-radius:12px;cursor:pointer;background:var(--panel);transition:all .15s;text-align:center;}
+.dm-btn:hover{border-color:var(--accent2);background:var(--panel2);}
+.dm-btn .ic{font-size:26px;}
+.dm-btn .lb{font-size:13px;color:var(--text);}
+.dm-btn .ds{font-size:11px;color:var(--muted);}
+/* ===== Onboarding 引导向导 ===== */
+#onboard{display:none;position:fixed;inset:0;background:linear-gradient(160deg,#171d31,#121622 60%);z-index:300;align-items:center;justify-content:center;padding:20px;overflow-y:auto;}
+#onboard.show{display:flex;}
+#auth{display:none;position:fixed;inset:0;background:linear-gradient(160deg,#171d31,#121622 60%);z-index:400;align-items:center;justify-content:center;padding:20px;overflow-y:auto;}
+#auth.show{display:flex;}
+.auth-tabs{display:flex;gap:8px;margin:16px 0 18px;}
+.auth-tab{flex:1;text-align:center;padding:9px;border-radius:9px;border:1px solid var(--border);color:var(--muted);cursor:pointer;font-size:14px;user-select:none;}
+.auth-tab.on{background:var(--panel2);border-color:var(--accent);color:var(--text);font-weight:600;}
+.auth-logo{font-size:30px;font-weight:800;letter-spacing:1px;background:linear-gradient(90deg,#8b9cf5,#4ec9d4);-webkit-background-clip:text;background-clip:text;color:transparent;}
+.auth-sub{font-size:12px;color:var(--muted);margin-top:4px;}
+.ob-card{background:var(--panel);border:1px solid var(--border);border-radius:18px;width:100%;max-width:520px;padding:34px 38px;animation:obin .4s ease;margin:auto;}
+@keyframes obin{from{opacity:0;transform:translateY(18px) scale(.97);}to{opacity:1;transform:none;}}
+.ob-logo{width:64px;height:64px;border-radius:16px;background:linear-gradient(135deg,#6f7ef0,#4ec9d4);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:24px;color:#121622;margin:0 auto 16px;box-shadow:0 8px 28px rgba(111,126,240,.35);}
+.ob-title{font-size:24px;font-weight:700;color:#eef2ff;text-align:center;}
+.ob-sub{font-size:13px;color:var(--muted);text-align:center;margin:6px 0 20px;}
+.ob-steps{display:flex;gap:6px;justify-content:center;margin-bottom:22px;}
+.ob-dot{width:34px;height:5px;border-radius:3px;background:#2a3354;transition:all .25s;}
+.ob-dot.on{background:linear-gradient(90deg,#6f7ef0,#4ec9d4);}
+.ob-q{font-size:16px;font-weight:600;color:#eef2ff;margin-bottom:14px;text-align:center;}
+.ob-fields .fg{margin-bottom:12px;}
+.ob-fields .fg label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;}
+.ob-fields input,.ob-fields select{width:100%;background:#0e1320;border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px 12px;font-size:14px;font-family:inherit;}
+.ob-fields input:focus,.ob-fields select:focus{outline:none;border-color:var(--accent2);}
+.ob-degrees{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;}
+.ob-degree{border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center;cursor:pointer;transition:all .15s;background:#0e1320;}
+.ob-degree:hover{border-color:var(--accent);}
+.ob-degree.sel{border-color:var(--accent2);background:#1c2848;box-shadow:0 0 0 1px var(--accent2);}
+.ob-degree .d1{font-size:15px;font-weight:600;color:#eef2ff;}
+.ob-degree .d2{font-size:11px;color:var(--muted);margin-top:3px;}
+.ob-btns{display:flex;gap:10px;margin-top:20px;}
+.ob-btns .spacer{flex:1;}
+.ob-skip{color:var(--muted);font-size:13px;cursor:pointer;align-self:center;}
+.ob-skip:hover{color:var(--text);}
+.ob-feat{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:18px 0 4px;}
+.ob-feat div{background:var(--panel2);border:1px solid var(--border);border-radius:9px;padding:10px 12px;font-size:12.5px;color:var(--text);}
+.ob-feat b{color:var(--accent2);}
+/* 欢迎横幅 */
+.welcome-banner{background:linear-gradient(120deg,#1d2742,#1c2133);border:1px solid #2d3e6e;border-radius:12px;padding:14px 18px;margin:14px 0;display:flex;align-items:center;gap:12px;animation:obin .35s ease;}
+.welcome-banner .wi{font-size:22px;}
+.welcome-banner .wt{font-size:14px;color:#eef2ff;}
+.welcome-banner .wt small{display:block;font-size:12px;color:var(--muted);margin-top:2px;}
+.welcome-banner .wa{margin-left:auto;display:flex;gap:8px;flex-shrink:0;}
+@media(max-width:860px){.sidebar{width:60px;padding:14px 6px;}.brand .t1,.brand .t2,.nav-item span.tx,.nav-sec,.nav-item .badge{display:none;}.main{margin-left:60px;padding:16px;}.modal{padding:18px;}.ob-card{padding:26px 22px;}}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- 侧边栏 -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">DR</div>
+      <div><div class="t1">DRSTUDY</div><div class="t2">研究生工作台</div></div>
+    </div>
+    <div class="nav-item active" data-page="dashboard"><span class="ico">◎</span><span class="tx">工作台</span></div>
+    <div class="nav-sec">科研管理</div>
+    <div class="nav-item" data-page="literature"><span class="ico">📚</span><span class="tx">文献管理</span><span class="badge" id="nav-lit">0</span></div>
+    <div class="nav-item" data-page="thesis"><span class="ico">✍</span><span class="tx">论文写作</span></div>
+    <div class="nav-item" data-page="milestone"><span class="ico">🚩</span><span class="tx">课题里程碑</span></div>
+    <div class="nav-item" data-page="research"><span class="ico">🔬</span><span class="tx">实验与数据</span></div>
+    <div class="nav-item" data-page="mentor"><span class="ico">🧑‍🏫</span><span class="tx">导师汇报</span></div>
+    <div class="nav-sec">学术与事务</div>
+    <div class="nav-item" data-page="academic"><span class="ico">🎤</span><span class="tx">学术活动</span></div>
+    <div class="nav-item" data-page="todo"><span class="ico">☑</span><span class="tx">待办中心</span><span class="badge" id="nav-todo">0</span></div>
+    <div class="nav-item" data-page="cv"><span class="ico">👤</span><span class="tx">成果与简历</span></div>
+    <div class="nav-sec">系统</div>
+    <div class="nav-item" data-page="settings"><span class="ico">⚙</span><span class="tx">设置与数据</span></div>
+  </aside>
+
+  <!-- 主区域 -->
+  <main class="main" id="main"></main>
+</div>
+
+<!-- 模态框 -->
+<div class="modal-mask" id="modalMask"><div class="modal" id="modalBox"></div></div>
+<div class="modal-mask" id="cfMask" style="z-index:150;"><div class="modal" style="max-width:400px;margin-top:20vh;">
+  <h3 style="margin-bottom:8px;">请确认 <span class="close" onclick="cfNo()">✕</span></h3>
+  <p id="cfMsg" style="color:var(--muted);font-size:14px;line-height:1.7;margin:6px 0 18px;"></p>
+  <div style="display:flex;gap:10px;justify-content:flex-end;">
+    <span class="btn" onclick="cfNo()">取消</span>
+    <span class="btn primary" onclick="cfYes()">确认</span>
+  </div>
+</div></div>
+<div id="toast"></div>
+
+<!-- 首次使用引导 -->
+<div id="onboard"><div class="ob-card" id="obCard"></div></div>
+<div id="auth"><div class="ob-card" id="authCard"></div></div>
+
+<script>
+/* ============================================================
+   DRSTUDY · 博士研究生工作台
+   单文件应用 · vanilla JS + localStorage
+   ============================================================ */
+const STORE_KEY = 'drbuddy_v1';            // 旧版单用户数据（迁移用）
+const ACC_KEY  = 'drbuddy_accounts';       // 账号列表
+const SESS_KEY = 'drbuddy_session';        // 当前登录账号
+const dataKey  = id => 'drbuddy_data_' + id;
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+const today = () => new Date().toISOString().slice(0,10);
+const now = () => new Date().toISOString();
+const daysUntil = (d) => { if(!d) return null; const diff = Math.ceil((new Date(d)-new Date(today()))/86400000); return diff; };
+const esc = (s) => { const d=document.createElement('div'); d.textContent=s==null?'':String(s); return d.innerHTML; };
+
+/* ---------- 默认数据 ---------- */
+function defaultData(){
+  return {
+    profile:{name:'',school:'',major:'',advisor:'',enrollYear:'',targetYear:'',degree:'博士'},
+    literature:[],
+    thesis:{chapters:[],papers:[]},
+    milestones:[],
+    research:[],
+    mentor:{cycleDays:14,lastReportDate:'',reports:[]},
+    academic:[],
+    todos:[],
+    cv:{papers:[],awards:[],skills:[],services:[]},
+    settings:{onboarded:false}
+  };
+}
+let DB = defaultData();
+let CUR = null; // 当前账号 {id, account}
+
+/* ---------- 账号体系（本地多账号，无需实名） ---------- */
+function getAccounts(){ try{ return JSON.parse(localStorage.getItem(ACC_KEY))||[]; }catch(e){ return []; } }
+function setAccounts(a){ localStorage.setItem(ACC_KEY, JSON.stringify(a)); }
+function pwHash(s){ let h=5381,h2=52711; for(let i=0;i<s.length;i++){ h=((h<<5)+h+s.charCodeAt(i))|0; h2=((h2<<5)+h2+s.charCodeAt(i))|0; } return (h>>>0).toString(36)+'.'+(h2>>>0).toString(36); }
+function loadAccountData(id){
+  try{
+    const r = localStorage.getItem(dataKey(id));
+    const d = r? JSON.parse(r): defaultData();
+    // 兼容旧数据：补全新字段
+    const def = defaultData();
+    d.profile = Object.assign({}, def.profile, d.profile||{});
+    d.settings = Object.assign({}, def.settings, d.settings||{});
+    d.cv = Object.assign({}, def.cv, d.cv||{});
+    d.thesis = Object.assign({}, def.thesis, d.thesis||{});
+    d.mentor = Object.assign({}, def.mentor, d.mentor||{});
+    return d;
+  }catch(e){ return defaultData(); }
+}
+function initSession(){
+  const sid = localStorage.getItem(SESS_KEY);
+  if(!sid) return false;
+  if(sid==='guest'){ CUR={id:'guest',account:'访客体验'}; DB=loadAccountData('guest'); return true; }
+  const acc = getAccounts().find(a=>a.id===sid);
+  if(acc){ CUR=acc; DB=loadAccountData(acc.id); return true; }
+  return false;
+}
+function doRegister(){
+  const acc = val('au_acc').trim();
+  const pw = val('au_pw'), pw2 = val('au_pw2');
+  const isPhone = /^1[3-9]\d{9}$/.test(acc);
+  const isMail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(acc);
+  if(!isMail && !isPhone){ toast('请输入正确的邮箱或手机号'); return; }
+  if(pw.length<6){ toast('密码至少 6 位'); return; }
+  if(pw!==pw2){ toast('两次输入的密码不一致'); return; }
+  const accs = getAccounts();
+  if(accs.find(a=>a.account===acc)){ toast('该账号已注册，请直接登录'); renderAuth('login'); return; }
+  const id = uid();
+  // 首个注册账号迁移旧版数据（若旧版有内容）
+  let data = defaultData();
+  if(!accs.length && !localStorage.getItem(dataKey('guest'))){
+    try{ const legacy = JSON.parse(localStorage.getItem(STORE_KEY)||'null');
+      if(legacy && ((legacy.literature||[]).length || (legacy.profile||{}).name)) data = legacy;
+    }catch(e){}
+  }
+  const account = {id, account:acc, pw:pwHash(pw+'·drbuddy')};
+  accs.push(account); setAccounts(accs);
+  localStorage.setItem(dataKey(id), JSON.stringify(data));
+  localStorage.setItem(SESS_KEY, id);
+  CUR=account; DB=loadAccountData(id);
+  hideAuth(); bootApp();
+  if(!DB.settings.onboarded && !DB.profile.name){ showOnboard(); }
+  toast('注册成功，欢迎！');
+}
+function doLogin(){
+  const acc = val('au_acc').trim(), pw = val('au_pw');
+  const a = getAccounts().find(x=>x.account===acc);
+  if(!a){ toast('账号不存在，请先注册'); return; }
+  if(a.pw!==pwHash(pw+'·drbuddy')){ toast('密码错误'); return; }
+  localStorage.setItem(SESS_KEY, a.id);
+  CUR=a; DB=loadAccountData(a.id);
+  hideAuth(); bootApp();
+  toast('欢迎回来，'+(DB.profile.name||acc));
+}
+function guestLogin(){
+  if(!localStorage.getItem(dataKey('guest'))) localStorage.setItem(dataKey('guest'), JSON.stringify(defaultData()));
+  localStorage.setItem(SESS_KEY,'guest');
+  CUR={id:'guest',account:'访客体验'}; DB=loadAccountData('guest');
+  hideAuth(); bootApp();
+  if(!DB.settings.onboarded && !DB.profile.name){ showOnboard(); }
+}
+function doLogout(){
+  uiConfirm('退出当前账号？数据保留在本设备，可随时重新登录。',()=>{ localStorage.removeItem(SESS_KEY); location.reload(); });
+}
+
+function load(){
+  try{
+    const r = localStorage.getItem(STORE_KEY);
+    const d = r? JSON.parse(r): defaultData();
+    const def = defaultData();
+    d.profile = Object.assign({}, def.profile, d.profile||{});
+    d.settings = Object.assign({}, def.settings, d.settings||{});
+    d.cv = Object.assign({}, def.cv, d.cv||{});
+    d.thesis = Object.assign({}, def.thesis, d.thesis||{});
+    d.mentor = Object.assign({}, def.mentor, d.mentor||{});
+    return d;
+  }catch(e){ return defaultData(); }
+}
+function save(){ localStorage.setItem(dataKey(CUR?CUR.id:'guest'), JSON.stringify(DB)); updateBadges(); }
+function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.style.display='block'; clearTimeout(t._t); t._t=setTimeout(()=>t.style.display='none',2200); }
+
+/* ---------- 导航 ---------- */
+const pages = {};
+document.querySelectorAll('.nav-item').forEach(el=>{
+  el.addEventListener('click',()=>go(el.dataset.page));
+});
+function go(page){
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active',n.dataset.page===page));
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  let pg = document.getElementById('pg-'+page);
+  if(!pg){ pg = document.createElement('div'); pg.className='page'; pg.id='pg-'+page; document.getElementById('main').appendChild(pg); }
+  pg.classList.add('active');
+  if(pages[page]) pages[page]();
+  window.scrollTo(0,0);
+}
+
+/* ---------- 模态框 ---------- */
+function openModal(html){
+  document.getElementById('modalBox').innerHTML = html;
+  document.getElementById('modalMask').classList.add('show');
+}
+function closeModal(){ document.getElementById('modalMask').classList.remove('show'); }
+document.getElementById('modalMask').addEventListener('click',e=>{ if(e.target.id==='modalMask') closeModal(); });
+
+/* ---------- 应用内确认弹窗（兼容微信内置浏览器，原生confirm可能被拦截） ---------- */
+let _cfCb = null;
+function uiConfirm(msg, cb){
+  _cfCb = cb;
+  document.getElementById('cfMsg').textContent = msg;
+  document.getElementById('cfMask').classList.add('show');
+}
+function cfYes(){ document.getElementById('cfMask').classList.remove('show'); const cb=_cfCb; _cfCb=null; if(cb) cb(); }
+function cfNo(){ document.getElementById('cfMask').classList.remove('show'); _cfCb=null; }
+document.getElementById('cfMask').addEventListener('click',e=>{ if(e.target.id==='cfMask') cfNo(); });
+
+/* ---------- 徽标 ---------- */
+function updateBadges(){
+  const lit = DB.literature.filter(l=>l.status==='待读').length;
+  const todo = DB.todos.filter(t=>!t.done && t.status!=='someday').length;
+  const el1=document.getElementById('nav-lit'), el2=document.getElementById('nav-todo');
+  el1.textContent=lit; el1.style.display=lit?'':'none';
+  el2.textContent=todo; el2.style.display=todo?'':'none';
+}
+
+/* ============================================================
+   1. 工作台 Dashboard
+   ============================================================ */
+pages.dashboard = function(){
+  const p = DB.profile;
+  const totalCh = DB.thesis.chapters.length;
+  const doneCh = DB.thesis.chapters.filter(c=>c.status==='已完成').length;
+  const thesisPct = totalCh? Math.round(doneCh/totalCh*100):0;
+  const litRead = DB.literature.filter(l=>l.status==='已读'||l.status==='已整理').length;
+  const litTotal = DB.literature.length;
+  const todosActive = DB.todos.filter(t=>!t.done).length;
+  const papersSubmitted = DB.thesis.papers.length;
+  const isEmpty = !litTotal && !totalCh && !DB.milestones.length && !DB.todos.length;
+
+  // 里程碑排序
+  const ms = DB.milestones.filter(m=>m.status!=='已完成').sort((a,b)=>a.date<b.date?-1:1);
+  // 智能提示
+  const sugs = genSuggestions();
+
+  const isDemo = DB.settings.isDemo || (!DB.settings.onboarded && p.name==='张同学') || (DB.settings.isDemo===undefined && p.name==='张同学' && DB.milestones.length>=3);
+  const demoBanner = isDemo? `
+    <div class="welcome-banner" style="border-color:#7c5cff;background:linear-gradient(120deg,#2a2150,#1d2742);">
+      <span class="wi">🎯</span>
+      <div class="wt">当前展示的是<b>示例数据</b>（虚构的演示账号）
+        <small>想开始管理你自己的科研生活？点击右侧按钮清除示例，录入你的个人信息</small>
+      </div>
+      <div class="wa">
+        <span class="btn primary sm" onclick="exitDemo()">录入我的信息 →</span>
+      </div>
+    </div>`:'';
+
+  const welcome = isEmpty? `
+    <div class="welcome-banner">
+      <span class="wi">👋</span>
+      <div class="wt">欢迎来到 DRSTUDY！你的工作台还是空的
+        <small>三步开始：① 完善个人信息 ② 添加第一个里程碑 ③ 导入文献或载入示例数据体验</small>
+      </div>
+      <div class="wa">
+        <span class="btn sm" onclick="go('settings')">完善信息</span>
+        <span class="btn sm" onclick="go('milestone')">添加里程碑</span>
+        <span class="btn primary sm" onclick="loadDemo()">载入示例数据</span>
+      </div>
+    </div>`:'';
+
+  document.getElementById('pg-dashboard').innerHTML = `
+    ${demoBanner}
+    ${welcome}
+    <div class="hero">
+      <div class="hello">${esc(p.name||'同学')}，今日聚焦 <small>🎓 ${esc(p.degree||'博士')}研究生 ${p.school?p.school+' · ':''}${esc(p.major||'')} ${p.enrollYear?('· '+p.enrollYear+'级'):''} ${p.advisor?('· 导师：'+esc(p.advisor)):''}</small></div>
+      <div class="ring" style="--p:${thesisPct}%"><div class="inner">${thesisPct}%</div></div>
+    </div>
+    <div class="stat-grid">
+      <div class="stat c1"><div class="num">${doneCh}/${totalCh}</div><div class="lbl">学位论文章节</div></div>
+      <div class="stat c2"><div class="num">${litRead}/${litTotal}</div><div class="lbl">文献已读</div></div>
+      <div class="stat c3"><div class="num">${papersSubmitted}</div><div class="lbl">小论文（含投稿）</div></div>
+      <div class="stat c4"><div class="num">${ms.length}</div><div class="lbl">待完成里程碑</div></div>
+      <div class="stat c5"><div class="num">${todosActive}</div><div class="lbl">活跃待办</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;" class="resp2">
+      <div>
+        <div class="card">
+          <h3>🚩 即将到来的里程碑</h3>
+          ${ms.length? ms.slice(0,5).map(m=>{
+            const d=daysUntil(m.date); let cls=d!==null&&d<=7?'urgent':(d!==null&&d<=30?'soon':'far');
+            return `<div class="dd ${cls}"><div class="t">${esc(m.title)}</div><div class="m">${esc(m.type)} · ${m.date}</div><div class="days">${d===null?'—':(d<0?'已过 '+(-d)+' 天':'剩 '+d+' 天')}</div></div>`;
+          }).join('') : '<div class="empty">暂无里程碑，去「课题里程碑」添加</div>'}
+        </div>
+      </div>
+      <div>
+        <div class="agent-box">
+          <div class="agent-head">
+            <div class="agent-av">DR</div>
+            <div><b>DRSTUDY 智能提示</b><br><small>基于你的科研进度自动生成</small></div>
+          </div>
+          ${sugs.length? sugs.map(s=>`<div class="sug ${s.lvl}"><span class="lvl">${s.lvl==='high'?'紧急':s.lvl==='mid'?'提醒':'建议'}</span><span class="txt">${s.txt}</span></div>`).join('') : '<div class="empty" style="padding:14px;">暂无提示，一切顺利 👍</div>'}
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>☑ 今日待办（高优先级）</h3>
+      ${renderTodoList(DB.todos.filter(t=>!t.done&&(t.priority==='高'||t.priority==='紧急')).slice(0,6),'dashboard')}
+      <div style="margin-top:8px;"><span class="btn sm" onclick="go('todo')">查看全部待办 →</span></div>
+    </div>
+  `;
+  applyResp();
+};
+
+/* ============================================================
+   2. 文献管理
+   ============================================================ */
+pages.literature = function(){
+  let filter = pages.literature._f || 'all';
+  let search = pages.literature._s || '';
+  const all = DB.literature;
+  let list = all;
+  if(filter!=='all') list = list.filter(l=>l.status===filter);
+  if(search) list = list.filter(l=>(l.title+l.authors+l.tags.join('')+l.venue).toLowerCase().includes(search.toLowerCase()));
+
+  document.getElementById('pg-literature').innerHTML = `
+    <h2>📚 文献管理 <span class="sub">共 ${all.length} 篇 · 已读 ${all.filter(l=>l.status==='已读'||l.status==='已整理').length}</span></h2>
+    <div class="filter-row">
+      ${['all','待读','在读','已读','已整理'].map(s=>`<span class="chip ${filter===s?'on':''}" onclick="setLitFilter('${s}')">${s==='all'?'全部':s}</span>`).join('')}
+      <input class="fg" style="max-width:220px;margin-left:auto;" placeholder="搜索标题/作者/标签…" value="${esc(search)}" oninput="setLitSearch(this.value)">
+      <span class="btn primary sm" onclick="litModal()">+ 添加文献</span>
+    </div>
+    ${list.length? list.map(l=>`
+      <div class="lit-card">
+        <div class="lh">
+          <div>
+            <div class="lt" onclick="litModal('${l.id}')">${esc(l.title)}</div>
+            <div class="lm">${esc(l.authors)} · ${esc(l.venue)} · ${l.year||''} ${l.doi?'· DOI: '+esc(l.doi):''}</div>
+          </div>
+          <div>
+            <span class="tag ${litStatusTag(l.status)}">${esc(l.status)}</span>
+            ${l.rating? '★'.repeat(l.rating):''}
+          </div>
+        </div>
+        ${l.tags.length?`<div class="lb">${l.tags.map(t=>`<span class="tag t-gray">${esc(t)}</span>`).join('')}</div>`:''}
+        ${l.keyPoints&&l.keyPoints.length?`<div class="kp-list">${l.keyPoints.map(k=>`<div class="kp">💡 ${esc(k)}</div>`).join('')}</div>`:''}
+        ${l.notes?`<div class="notes">${esc(l.notes)}</div>`:''}
+      </div>
+    `).join('') : '<div class="empty">暂无文献，点击「添加文献」开始构建你的文献库</div>'}
+  `;
+};
+function litStatusTag(s){ return {待读:'t-red',在读:'t-gold',已读:'t-green',已整理:'t-purple'}[s]||'t-gray'; }
+function setLitFilter(f){ pages.literature._f=f; pages.literature(); }
+function setLitSearch(s){ pages.literature._s=s; pages.literature(); }
+
+function litModal(id){
+  const l = id? DB.literature.find(x=>x.id===id) : {id:'',title:'',authors:'',year:'',venue:'',doi:'',tags:[],status:'待读',rating:0,notes:'',keyPoints:[]};
+  openModal(`
+    <h3>${id?'编辑文献':'添加文献'} <span class="close" onclick="closeModal()">✕</span></h3>
+    <div class="form-grid">
+      <div class="fg full"><label>标题 *</label><input id="lf_title" value="${esc(l.title)}" placeholder="论文标题"></div>
+      <div class="fg"><label>作者</label><input id="lf_authors" value="${esc(l.authors)}" placeholder="如 Zhang Y, Li M"></div>
+      <div class="fg"><label>年份</label><input id="lf_year" value="${esc(l.year)}" placeholder="2024"></div>
+      <div class="fg"><label>期刊/会议</label><input id="lf_venue" value="${esc(l.venue)}" placeholder="Nature Energy"></div>
+      <div class="fg"><label>DOI</label><input id="lf_doi" value="${esc(l.doi)}" placeholder="10.xxxx/xxxx"></div>
+      <div class="fg"><label>状态</label><select id="lf_status">${['待读','在读','已读','已整理'].map(s=>`<option ${l.status===s?'selected':''}>${s}</option>`).join('')}</select></div>
+      <div class="fg"><label>评分（1-5）</label><input id="lf_rating" type="number" min="0" max="5" value="${l.rating||0}"></div>
+      <div class="fg full"><label>标签（逗号分隔）</label><input id="lf_tags" value="${esc(l.tags.join(', '))}" placeholder="热舒适, 现场实测"></div>
+      <div class="fg full"><label>关键观点（每行一条）</label><textarea id="lf_kp" rows="3" placeholder="每行一条关键观点">${esc((l.keyPoints||[]).join('\n'))}</textarea></div>
+      <div class="fg full"><label>阅读笔记</label><textarea id="lf_notes" rows="4">${esc(l.notes)}</textarea></div>
+    </div>
+    <div class="btn-row">
+      ${id?`<span class="btn danger sm" onclick="litDel('${id}')">删除</span>`:''}
+      <span class="btn" onclick="closeModal()">取消</span>
+      <span class="btn primary" onclick="litSave('${id}')">保存</span>
+    </div>
+  `);
+}
+function litSave(id){
+  const obj = {
+    title: val('lf_title').trim(), authors: val('lf_authors').trim(), year: val('lf_year').trim(),
+    venue: val('lf_venue').trim(), doi: val('lf_doi').trim(),
+    status: val('lf_status'), rating: parseInt(val('lf_rating'))||0,
+    tags: val('lf_tags').split(',').map(s=>s.trim()).filter(Boolean),
+    keyPoints: val('lf_kp').split('\n').map(s=>s.trim()).filter(Boolean),
+    notes: val('lf_notes').trim()
+  };
+  if(!obj.title){ toast('请填写标题'); return; }
+  if(id){ Object.assign(DB.literature.find(x=>x.id===id), obj); }
+  else { obj.id=uid(); obj.addedAt=now(); DB.literature.unshift(obj); }
+  save(); closeModal(); pages.literature(); toast('已保存');
+}
+function litDel(id){ uiConfirm('确认删除该文献？',()=>{ DB.literature=DB.literature.filter(x=>x.id!==id); save(); closeModal(); pages.literature(); toast('已删除'); }); }
+
+/* ============================================================
+   3. 论文写作（学位论文章节 + 小论文投稿）
+   ============================================================ */
+pages.thesis = function(){
+  const chs = DB.thesis.chapters;
+  const pps = DB.thesis.papers;
+  const totalTarget = chs.reduce((s,c)=>s+(c.targetWords||0),0);
+  const totalCurrent = chs.reduce((s,c)=>s+(c.currentWords||0),0);
+  const pct = totalTarget? Math.round(totalCurrent/totalTarget*100):0;
+  document.getElementById('pg-thesis').innerHTML = `
+    <h2>✍ 论文写作 <span class="sub">学位论文 ${chs.length} 章 · 小论文 ${pps.length} 篇</span></h2>
+    <div class="card">
+      <h3>📖 学位论文进度 <span class="act"><span class="btn sm" onclick="chModal()">+ 添加章节</span></span></h3>
+      ${chs.length? `
+        <div style="margin:8px 0 14px;"><div class="bar"><div class="fill ${pct<40?'danger':pct<70?'warn':''}" style="width:${pct}%"></div></div>
+        <div class="muted" style="font-size:12px;margin-top:5px;">总进度 ${pct}% · ${totalCurrent.toLocaleString()} / ${totalTarget.toLocaleString()} 字</div></div>
+        <table><tr><th>章节</th><th>目标字数</th><th>当前字数</th><th>进度</th><th>状态</th><th>截止</th><th>操作</th></tr>
+        ${chs.map(c=>{
+          const cp = c.targetWords? Math.round(c.currentWords/c.targetWords*100):0;
+          const d=daysUntil(c.deadline);
+          return `<tr>
+            <td>${esc(c.title)}</td><td>${(c.targetWords||0).toLocaleString()}</td><td>${(c.currentWords||0).toLocaleString()}</td>
+            <td style="min-width:90px;"><div class="bar" style="height:6px;"><div class="fill ${cp<40?'danger':cp<70?'warn':''}" style="width:${Math.min(cp,100)}%"></div></div><small class="muted">${cp}%</small></td>
+            <td><span class="tag ${chStatusTag(c.status)}">${esc(c.status)}</span></td>
+            <td>${c.deadline||'-'}${d!==null&&d>=0?` <small class="muted">(${d}天)</small>`:''}</td>
+            <td><span class="btn sm" onclick="chModal('${c.id}')">编辑</span></td>
+          </tr>`;
+        }).join('')}
+        </table>
+      `:'<div class="empty">暂无章节，添加你的学位论文章节来追踪写作进度</div>'}
+    </div>
+    <div class="card">
+      <h3>📄 小论文投稿追踪 <span class="act"><span class="btn sm" onclick="ppModal()">+ 添加论文</span></span></h3>
+      ${pps.length? `<table><tr><th>标题</th><th>目标期刊</th><th>状态</th><th>投稿日期</th><th>备注</th><th>操作</th></tr>
+        ${pps.map(p=>`<tr>
+          <td>${esc(p.title)}</td><td>${esc(p.targetVenue)}</td>
+          <td><span class="tag ${ppStatusTag(p.status)}">${esc(p.status)}</span></td>
+          <td>${p.submittedDate||'-'}</td><td style="max-width:200px;">${esc(p.notes||'')}</td>
+          <td><span class="btn sm" onclick="ppModal('${p.id}')">编辑</span></td>
+        </tr>`).join('')}
+      </table>`:'<div class="empty">暂无小论文记录</div>'}
+    </div>
+  `;
+};
+function chStatusTag(s){ return {未开始:'t-gray',写作中:'t-gold',修改中:'t-blue',已完成:'t-green'}[s]||'t-gray'; }
+function ppStatusTag(s){ return {构思:'t-gray',写作中:'t-gold',投稿中:'t-blue',修回:'t-purple',录用:'t-green',发表:'t-cyan'}[s]||'t-gray'; }
+function chModal(id){
+  const c = id? DB.thesis.chapters.find(x=>x.id===id) : {id:'',title:'',targetWords:0,currentWords:0,status:'未开始',deadline:'',notes:''};
+  openModal(`
+    <h3>${id?'编辑章节':'添加章节'} <span class="close" onclick="closeModal()">✕</span></h3>
+    <div class="form-grid">
+      <div class="fg full"><label>章节标题 *</label><input id="cf_title" value="${esc(c.title)}" placeholder="如 第三章 热环境现场实测与分析"></div>
+      <div class="fg"><label>目标字数</label><input id="cf_tw" type="number" value="${c.targetWords||0}"></div>
+      <div class="fg"><label>当前字数</label><input id="cf_cw" type="number" value="${c.currentWords||0}"></div>
+      <div class="fg"><label>状态</label><select id="cf_status">${['未开始','写作中','修改中','已完成'].map(s=>`<option ${c.status===s?'selected':''}>${s}</option>`).join('')}</select></div>
+      <div class="fg"><label>截止日期</label><input id="cf_dl" type="date" value="${c.deadline||''}"></div>
+      <div class="fg full"><label>备注</label><textarea id="cf_notes" rows="2">${esc(c.notes)}</textarea></div>
+    </div>
+    <div class="btn-row">${id?`<span class="btn danger sm" onclick="chDel('${id}')">删除</span>`:''}<span class="btn" onclick="closeModal()">取消</span><span class="btn primary" onclick="chSave('${id}')">保存</span></div>
+  `);
+}
+function chSave(id){
+  const obj={title:val('cf_title').trim(),targetWords:parseInt(val('cf_tw'))||0,currentWords:parseInt(val('cf_cw'))||0,status:val('cf_status'),deadline:val('cf_dl'),notes:val('cf_notes').trim()};
+  if(!obj.title){toast('请填写标题');return;}
+  if(id){Object.assign(DB.thesis.chapters.find(x=>x.id===id),obj);}else{obj.id=uid();DB.thesis.chapters.push(obj);}
+  save();closeModal();pages.thesis();toast('已保存');
+}
+function chDel(id){uiConfirm('删除该章节？',()=>{DB.thesis.chapters=DB.thesis.chapters.filter(x=>x.id!==id);save();closeModal();pages.thesis();toast('已删除');});}
+function ppModal(id){
+  const p = id? DB.thesis.papers.find(x=>x.id===id) : {id:'',title:'',targetVenue:'',status:'构思',submittedDate:'',notes:''};
+  openModal(`
+    <h3>${id?'编辑小论文':'添加小论文'} <span class="close" onclick="closeModal()">✕</span></h3>
+    <div class="form-grid">
+      <div class="fg full"><label>标题 *</label><input id="pf_title" value="${esc(p.title)}"></div>
+      <div class="fg"><label>目标期刊/会议</label><input id="pf_venue" value="${esc(p.targetVenue)}"></div>
+      <div class="fg"><label>状态</label><select id="pf_status">${['构思','写作中','投稿中','修回','录用','发表'].map(s=>`<option ${p.status===s?'selected':''}>${s}</option>`).join('')}</select></div>
+      <div class="fg"><label>投稿日期</label><input id="pf_date" type="date" value="${p.submittedDate||''}"></div>
+      <div class="fg full"><label>备注</label><textarea id="pf_notes" rows="2">${esc(p.notes)}</textarea></div>
+    </div>
+    <div class="btn-row">${id?`<span class="btn danger sm" onclick="ppDel('${id}')">删除</span>`:''}<span class="btn" onclick="closeModal()">取消</span><span class="btn primary" onclick="ppSave('${id}')">保存</span></div>
+  `);
+}
+function ppSave(id){
+  const obj={title:val('pf_title').trim(),targetVenue:val('pf_venue').trim(),status:val('pf_status'),submittedDate:val('pf_date'),notes:val('pf_notes').trim()};
+  if(!obj.title){toast('请填写标题');return;}
+  if(id){Object.assign(DB.thesis.papers.find(x=>x.id===id),obj);}else{obj.id=uid();DB.thesis.papers.push(obj);}
+  save();closeModal();pages.thesis();toast('已保存');
+}
+function ppDel(id){uiConfirm('删除该投稿记录？',()=>{DB.thesis.papers=DB.thesis.papers.filter(x=>x.id!==id);save();closeModal();pages.thesis();toast('已删除');});}
+
+/* ============================================================
+   4. 课题里程碑
+   ============================================================ */
+pages.milestone = function(){
+  const ms = DB.milestones.sort((a,b)=>a.date<b.date?-1:1);
+  document.getElementById('pg-milestone').innerHTML = `
+    <h2>🚩 课题里程碑 <span class="sub">${DB.profile.degree==='硕士'?'开题 · 中期 · 答辩':'开题 · 中期 · 预答辩 · 盲审 · 答辩'} · 关键节点</span></h2>
+    <div style="margin:10px 0;"><span class="btn primary sm" onclick="msModal()">+ 添加里程碑</span></div>
+    ${ms.length? ms.map(m=>{
+      const d=daysUntil(m.date); const done=m.status==='已完成';
+      return `<div class="dd ${d!==null&&d<=7&&d>=0&&!done?'urgent':d!==null&&d<=30&&!done?'soon':done?'':'far'}" style="margin-bottom:10px;">
+        <div class="lh" style="display:flex;justify-content:space-between;align-items:flex-start;">
+          <div><div class="t">${esc(m.title)}</div><div class="m">${esc(m.type)} · ${m.date} ${done?'✅':''}</div></div>
+          <span class="tag ${msStatusTag(m.status)}">${esc(m.status)}</span>
+        </div>
+        ${m.description?`<div class="m" style="margin-top:5px;">${esc(m.description)}</div>`:''}
+        ${m.tasks&&m.tasks.length?`<div style="margin-top:6px;font-size:12px;">准备事项：${m.tasks.map(t=>`<span class="tag t-gray">${esc(t)}</span>`).join('')}</div>`:''}
+        <div class="days" style="margin-top:5px;">${done?'已完成':d===null?'—':d<0?'已过 '+(-d)+' 天':'剩 '+d+' 天'}</div>
+        <div style="margin-top:6px;"><span class="btn sm" onclick="msModal('${m.id}')">编辑</span></div>
+      </div>`;
+    }).join('') : `<div class="empty">暂无里程碑。建议添加：${DB.profile.degree==='硕士'?'开题报告、中期考核、毕业答辩':'开题报告、中期考核、预答辩、盲审、正式答辩'}等节点</div>`}
+  `;
+};
+function msStatusTag(s){ return {未开始:'t-gray',进行中:'t-gold',已完成:'t-green'}[s]||'t-gray'; }
+function msModal(id){
+  const m = id? DB.milestones.find(x=>x.id===id) : {id:'',title:'',type:'开题',date:'',status:'未开始',description:'',tasks:[]};
+  const types = DB.profile.degree==='硕士'? ['开题','中期','答辩','其他'] : ['开题','中期','预答辩','盲审','答辩','其他'];
+  openModal(`
+    <h3>${id?'编辑里程碑':'添加里程碑'} <span class="close" onclick="closeModal()">✕</span></h3>
+    <div class="form-grid">
+      <div class="fg full"><label>名称 *</label><input id="mf_title" value="${esc(m.title)}" placeholder="如 ${DB.profile.degree==='硕士'?'硕士学位论文开题报告':'博士学位论文开题报告'}"></div>
+      <div class="fg"><label>类型</label><select id="mf_type">${types.map(s=>`<option ${m.type===s?'selected':''}>${s}</option>`).join('')}</select></div>
+      <div class="fg"><label>日期 *</label><input id="mf_date" type="date" value="${m.date||''}"></div>
+      <div class="fg"><label>状态</label><select id="mf_status">${['未开始','进行中','已完成'].map(s=>`<option ${m.status===s?'selected':''}>${s}</option>`).join('')}</select></div>
+      <div class="fg full"><label>描述</label><textarea id="mf_desc" rows="2">${esc(m.description)}</textarea></div>
+      <div class="fg full"><label>准备事项（每行一条）</label><textarea id="mf_tasks" rows="3" placeholder="每行一条">${esc((m.tasks||[]).join('\n'))}</textarea></div>
+    </div>
+    <div class="btn-row">${id?`<span class="btn danger sm" onclick="msDel('${id}')">删除</span>`:''}<span class="btn" onclick="closeModal()">取消</span><span class="btn primary" onclick="msSave('${id}')">保存</span></div>
+  `);
+}
+function msSave(id){
+  const obj={title:val('mf_title').trim(),type:val('mf_type'),date:val('mf_date'),status:val('mf_status'),description:val('mf_desc').trim(),tasks:val('mf_tasks').split('\n').map(s=>s.trim()).filter(Boolean)};
+  if(!obj.title||!obj.date){toast('请填写名称和日期');return;}
+  if(id){Object.assign(DB.milestones.find(x=>x.id===id),obj);}else{obj.id=uid();DB.milestones.push(obj);}
+  save();closeModal();pages.milestone();toast('已保存');
+}
+function msDel(id){uiConfirm('删除该里程碑？',()=>{DB.milestones=DB.milestones.filter(x=>x.id!==id);save();closeModal();pages.milestone();toast('已删除');});}
+
+/* ============================================================
+   5. 实验与数据
+   ============================================================ */
+pages.research = function(){
+  const rs = DB.research.sort((a,b)=>a.date<b.date?1:-1);
+  document.getElementById('pg-research').innerHTML = `
+    <h2>🔬 实验与数据 <span class="sub">实验记录 · 调研 · 数据集 · 方法工具</span></h2>
+    <div style="margin:10px 0;"><span class="btn primary sm" onclick="rsModal()">+ 添加记录</span></div>
+    ${rs.length? rs.map(r=>`
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+          <div><div style="font-size:15px;font-weight:600;color:#eef2ff;">${esc(r.title)}</div>
+          <div class="muted" style="font-size:12px;margin-top:2px;"><span class="tag t-cyan">${esc(r.type)}</span> ${r.date}</div></div>
+          <span class="btn sm" onclick="rsModal('${r.id}')">编辑</span>
+        </div>
+        ${r.description?`<div style="margin-top:8px;font-size:13px;">${esc(r.description)}</div>`:''}
+        ${r.data&&r.data.length?`<div style="margin-top:8px;font-size:12px;">数据：<span class="muted">${esc(r.data.join('、'))}</span></div>`:''}
+        ${r.tools&&r.tools.length?`<div style="margin-top:5px;font-size:12px;">工具：<span class="muted">${esc(r.tools.join('、'))}</span></div>`:''}
+        ${r.notes?`<div class="notes" style="background:var(--panel2);border-radius:7px;padding:8px 11px;margin-top:8px;font-size:12.5px;">${esc(r.notes)}</div>`:''}
+      </div>
+    `).join('') : '<div class="empty">暂无记录。记录你的实验、调研、数据集和使用的工具方法</div>'}
+  `;
+};
+function rsModal(id){
+  const r = id? DB.research.find(x=>x.id===id) : {id:'',type:'实验',title:'',date:today(),description:'',data:[],tools:[],notes:''};
+  openModal(`
+    <h3>${id?'编辑记录':'添加记录'} <span class="close" onclick="closeModal()">✕</span></h3>
+    <div class="form-grid">
+      <div class="fg full"><label>标题 *</label><input id="rf_title" value="${esc(r.title)}" placeholder="如 冬季教室热环境现场实测"></div>
+      <div class="fg"><label>类型</label><select id="rf_type">${['实验','调研','数据集','方法工具','访谈'].map(s=>`<option ${r.type===s?'selected':''}>${s}</option>`).join('')}</select></div>
+      <div class="fg"><label>日期</label><input id="rf_date" type="date" value="${r.date||''}"></div>
+      <div class="fg full"><label>描述</label><textarea id="rf_desc" rows="2">${esc(r.description)}</textarea></div>
+      <div class="fg full"><label>数据/参数（逗号分隔）</label><input id="rf_data" value="${esc((r.data||[]).join(', '))}" placeholder="温度, 湿度, CO2浓度"></div>
+      <div class="fg full"><label>工具/方法（逗号分隔）</label><input id="rf_tools" value="${esc((r.tools||[]).join(', '))}" placeholder="EnergyPlus, Python, XGBoost"></div>
+      <div class="fg full"><label>备注</label><textarea id="rf_notes" rows="3">${esc(r.notes)}</textarea></div>
+    </div>
+    <div class="btn-row">${id?`<span class="btn danger sm" onclick="rsDel('${id}')">删除</span>`:''}<span class="btn" onclick="closeModal()">取消</span><span class="btn primary" onclick="rsSave('${id}')">保存</span></div>
+  `);
+}
+function rsSave(id){
+  const obj={title:val('rf_title').trim(),type:val('rf_type'),date:val('rf_date'),description:val('rf_desc').trim(),data:val('rf_data').split(',').map(s=>s.trim()).filter(Boolean),tools:val('rf_tools').split(',').map(s=>s.trim()).filter(Boolean),notes:val('rf_notes').trim()};
+  if(!obj.title){toast('请填写标题');return;}
+  if(id){Object.assign(DB.research.find(x=>x.id===id),obj);}else{obj.id=uid();DB.research.push(obj);}
+  save();closeModal();pages.research();toast('已保存');
+}
+function rsDel(id){uiConfirm('删除该记录？',()=>{DB.research=DB.research.filter(x=>x.id!==id);save();closeModal();pages.research();toast('已删除');});}
+
+/* ============================================================
+   6. 导师汇报
+   ============================================================ */
+pages.mentor = function(){
+  const m = DB.mentor;
+  const reports = (m.reports||[]).sort((a,b)=>a.date<b.date?1:-1);
+  let nextDate='—';
+  if(m.cycleDays && m.lastReportDate){
+    const d=new Date(m.lastReportDate); d.setDate(d.getDate()+parseInt(m.cycleDays));
+    nextDate=d.toISOString().slice(0,10);
+  }
+  document.getElementById('pg-mentor').innerHTML = `
+    <h2>🧑‍🏫 导师汇报 <span class="sub">周期管理 · 汇报记录 · 待确认事项</span></h2>
+    <div class="card">
+      <h3>⚙ 汇报周期设置</h3>
+      <div class="form-grid">
+        <div class="fg"><label>汇报周期（天）</label><input id="mt_cycle" type="number" value="${m.cycleDays||14}" onchange="mtSaveCycle()"></div>
+        <div class="fg"><label>上次汇报日期</label><input id="mt_last" type="date" value="${m.lastReportDate||''}" onchange="mtSaveCycle()"></div>
+        <div class="fg"><label>下次预计汇报</label><input value="${nextDate}" disabled></div>
+      </div>
+      ${m.cycleDays&&m.lastReportDate?`<div class="tips">下次汇报预计 <b>${nextDate}</b>，距今 <b>${daysUntil(nextDate)}</b> 天。</div>`:''}
+    </div>
+    <div class="card">
+      <h3>📝 汇报记录 <span class="act"><span class="btn sm" onclick="rpModal()">+ 添加汇报</span></span></h3>
+      ${reports.length? `<div class="tl">${reports.map(r=>`
+        <div class="tl-item">
+          <div class="date">${r.date}</div>
+          <div class="body">
+            <div style="font-weight:600;margin-bottom:4px;">汇报内容</div>
+            <div style="font-size:13px;white-space:pre-wrap;">${esc(r.content)}</div>
+            ${r.feedback?`<div style="font-weight:600;margin:8px 0 4px;">导师反馈</div><div style="font-size:13px;white-space:pre-wrap;">${esc(r.feedback)}</div>`:''}
+            ${r.actionItems&&r.actionItems.length?`<div class="ai">⏳ 待确认/行动项：${r.actionItems.map(a=>`<span class="tag t-gold">${esc(a)}</span>`).join('')}</div>`:''}
+            <div style="margin-top:8px;"><span class="btn sm" onclick="rpModal('${r.id}')">编辑</span></div>
+          </div>
+        </div>`).join('')}</div>`:'<div class="empty">暂无汇报记录</div>'}
+    </div>
+  `;
+};
+function mtSaveCycle(){ DB.mentor.cycleDays=parseInt(val('mt_cycle'))||0; DB.mentor.lastReportDate=val('mt_last'); save(); pages.mentor(); }
+function rpModal(id){
+  const r = id? DB.mentor.reports.find(x=>x.id===id) : {id:'',date:today(),content:'',feedback:'',actionItems:[]};
+  openModal(`
+    <h3>${id?'编辑汇报':'添加汇报'} <span class="close" onclick="closeModal()">✕</span></h3>
+    <div class="form-grid">
+      <div class="fg"><label>日期</label><input id="rf_date" type="date" value="${r.date||''}"></div>
+      <div class="fg full"><label>汇报内容</label><textarea id="rf_content" rows="4" placeholder="本周进展、遇到的问题、下周计划…">${esc(r.content)}</textarea></div>
+      <div class="fg full"><label>导师反馈</label><textarea id="rf_feedback" rows="3">${esc(r.feedback)}</textarea></div>
+      <div class="fg full"><label>待确认/行动项（每行一条）</label><textarea id="rf_ai" rows="3">${esc((r.actionItems||[]).join('\n'))}</textarea></div>
+    </div>
+    <div class="btn-row">${id?`<span class="btn danger sm" onclick="rpDel('${id}')">删除</span>`:''}<span class="btn" onclick="closeModal()">取消</span><span class="btn primary" onclick="rpSave('${id}')">保存</span></div>
+  `);
+}
+function rpSave(id){
+  const obj={date:val('rf_date'),content:val('rf_content').trim(),feedback:val('rf_feedback').trim(),actionItems:val('rf_ai').split('\n').map(s=>s.trim()).filter(Boolean)};
+  if(!obj.date){toast('请选择日期');return;}
+  if(id){Object.assign(DB.mentor.reports.find(x=>x.id===id),obj);}else{obj.id=uid();DB.mentor.reports.push(obj);}
+  DB.mentor.lastReportDate = obj.date; save();closeModal();pages.mentor();toast('已保存');
+}
+function rpDel(id){uiConfirm('删除该汇报记录？',()=>{DB.mentor.reports=DB.mentor.reports.filter(x=>x.id!==id);save();closeModal();pages.mentor();toast('已删除');});}
+
+/* ============================================================
+   7. 学术活动
+   ============================================================ */
+pages.academic = function(){
+  const ac = DB.academic.sort((a,b)=>a.date<b.date?1:-1);
+  document.getElementById('pg-academic').innerHTML = `
+    <h2>🎤 学术活动 <span class="sub">会议 · 报告 · 交流访问</span></h2>
+    <div style="margin:10px 0;"><span class="btn primary sm" onclick="acModal()">+ 添加活动</span></div>
+    ${ac.length? `<table><tr><th>活动</th><th>类型</th><th>日期</th><th>地点</th><th>角色</th><th>备注</th><th>操作</th></tr>
+      ${ac.map(a=>`<tr>
+        <td>${esc(a.title)}</td><td><span class="tag t-blue">${esc(a.type)}</span></td>
+        <td>${a.date}</td><td>${esc(a.location||'-')}</td><td>${esc(a.role||'-')}</td>
+        <td style="max-width:180px;">${esc(a.notes||'')}</td>
+        <td><span class="btn sm" onclick="acModal('${a.id}')">编辑</span></td>
+      </tr>`).join('')}
+    </table>`:'<div class="empty">暂无学术活动记录</div>'}
+  `;
+};
+function acModal(id){
+  const a = id? DB.academic.find(x=>x.id===id) : {id:'',type:'会议',title:'',date:today(),location:'',role:'',notes:''};
+  openModal(`
+    <h3>${id?'编辑活动':'添加活动'} <span class="close" onclick="closeModal()">✕</span></h3>
+    <div class="form-grid">
+      <div class="fg full"><label>活动名称 *</label><input id="af_title" value="${esc(a.title)}"></div>
+      <div class="fg"><label>类型</label><select id="af_type">${['会议','学术报告','交流访问','短期培训','其他'].map(s=>`<option ${a.type===s?'selected':''}>${s}</option>`).join('')}</select></div>
+      <div class="fg"><label>日期</label><input id="af_date" type="date" value="${a.date||''}"></div>
+      <div class="fg"><label>地点</label><input id="af_loc" value="${esc(a.location)}"></div>
+      <div class="fg"><label>角色</label><input id="af_role" value="${esc(a.role)}" placeholder="如 口头报告/海报/参会"></div>
+      <div class="fg full"><label>备注</label><textarea id="af_notes" rows="2">${esc(a.notes)}</textarea></div>
+    </div>
+    <div class="btn-row">${id?`<span class="btn danger sm" onclick="acDel('${id}')">删除</span>`:''}<span class="btn" onclick="closeModal()">取消</span><span class="btn primary" onclick="acSave('${id}')">保存</span></div>
+  `);
+}
+function acSave(id){
+  const obj={title:val('af_title').trim(),type:val('af_type'),date:val('af_date'),location:val('af_loc').trim(),role:val('af_role').trim(),notes:val('af_notes').trim()};
+  if(!obj.title){toast('请填写名称');return;}
+  if(id){Object.assign(DB.academic.find(x=>x.id===id),obj);}else{obj.id=uid();DB.academic.push(obj);}
+  save();closeModal();pages.academic();toast('已保存');
+}
+function acDel(id){uiConfirm('删除该活动记录？',()=>{DB.academic=DB.academic.filter(x=>x.id!==id);save();closeModal();pages.academic();toast('已删除');});}
+
+/* ============================================================
+   8. 待办中心（GTD式）
+   ============================================================ */
+pages.todo = function(){
+  const f = pages.todo._f || 'all';
+  let list = DB.todos;
+  if(f!=='all') list = list.filter(t=>t.status===f);
+  list = list.sort((a,b)=>(a.done-b.done)||(a.priority==='紧急'?0:1)-(b.priority==='紧急'?0:1)||(a.due||'z').localeCompare(b.due||'z'));
+  const counts = {all:DB.todos.filter(t=>!t.done).length,inbox:DB.todos.filter(t=>t.status==='inbox'&&!t.done).length,next:DB.todos.filter(t=>t.status==='next'&&!t.done).length,project:DB.todos.filter(t=>t.status==='project'&&!t.done).length,waiting:DB.todos.filter(t=>t.status==='waiting'&&!t.done).length,someday:DB.todos.filter(t=>t.status==='someday').length};
+  document.getElementById('pg-todo').innerHTML = `
+    <h2>☑ 待办中心 <span class="sub">GTD 任务流 · 收件箱→下一步→项目</span></h2>
+    <div class="filter-row">
+      ${[['all','全部'],['inbox','收件箱'],['next','下一步'],['project','项目'],['waiting','等待'],['someday','将来/也许']].map(([k,n])=>`<span class="chip ${f===k?'on':''}" onclick="setTodoF('${k}')">${n}${counts[k]?'('+counts[k]+')':''}</span>`).join('')}
+      <span class="btn primary sm" style="margin-left:auto;" onclick="tdModal()">+ 添加待办</span>
+    </div>
+    ${renderTodoList(list,'todo')}
+  `;
+};
+function setTodoF(f){pages.todo._f=f;pages.todo();}
+function renderTodoList(list,ctx){
+  if(!list.length) return '<div class="empty">暂无待办</div>';
+  return list.map(t=>{
+    const d=daysUntil(t.due); const overdue=!t.done&&d!==null&&d<0;
+    return `<div class="todo-item ${t.done?'done':''} ${overdue?'overdue':''}">
+      <input type="checkbox" class="ck" ${t.done?'checked':''} onchange="tdToggle('${t.id}')">
+      <div class="tt">${esc(t.text)}
+        <small>${t.project?'📁 '+esc(t.project)+' · ':''}${t.context?'@'+esc(t.context)+' · ':''}<span class="tag ${t.priority==='紧急'?'t-red':t.priority==='高'?'t-gold':'t-gray'}">${esc(t.priority)}</span>${t.due?' · '+t.due:''}${overdue?' · 已逾期':''}</small>
+      </div>
+      <span class="btn sm" onclick="tdModal('${t.id}')">编辑</span>
+    </div>`;
+  }).join('');
+}
+function tdModal(id){
+  const t = id? DB.todos.find(x=>x.id===id) : {id:'',text:'',project:'',context:'',status:'inbox',due:'',priority:'中',done:false};
+  openModal(`
+    <h3>${id?'编辑待办':'添加待办'} <span class="close" onclick="closeModal()">✕</span></h3>
+    <div class="form-grid">
+      <div class="fg full"><label>任务内容 *</label><input id="tf_text" value="${esc(t.text)}"></div>
+      <div class="fg"><label>所属项目</label><input id="tf_proj" value="${esc(t.project)}" placeholder="如 学位论文第三章"></div>
+      <div class="fg"><label>情境</label><input id="tf_ctx" value="${esc(t.context)}" placeholder="如 @实验室 @电脑"></div>
+      <div class="fg"><label>状态</label><select id="tf_status">${[['inbox','收件箱'],['next','下一步'],['project','项目'],['waiting','等待'],['someday','将来/也许']].map(([v,n])=>`<option value="${v}" ${t.status===v?'selected':''}>${n}</option>`).join('')}</select></div>
+      <div class="fg"><label>优先级</label><select id="tf_pri">${['紧急','高','中','低'].map(s=>`<option ${t.priority===s?'selected':''}>${s}</option>`).join('')}</select></div>
+      <div class="fg"><label>截止日期</label><input id="tf_due" type="date" value="${t.due||''}"></div>
+    </div>
+    <div class="btn-row">${id?`<span class="btn danger sm" onclick="tdDel('${id}')">删除</span>`:''}<span class="btn" onclick="closeModal()">取消</span><span class="btn primary" onclick="tdSave('${id}')">保存</span></div>
+  `);
+}
+function tdSave(id){
+  const obj={text:val('tf_text').trim(),project:val('tf_proj').trim(),context:val('tf_ctx').trim(),status:val('tf_status'),priority:val('tf_pri'),due:val('tf_due')};
+  if(!obj.text){toast('请填写任务内容');return;}
+  if(id){Object.assign(DB.todos.find(x=>x.id===id),obj);}else{obj.id=uid();obj.done=false;obj.createdAt=now();DB.todos.push(obj);}
+  save();closeModal();refreshTodo();toast('已保存');
+}
+function tdToggle(id){ const t=DB.todos.find(x=>x.id===id); t.done=!t.done; t.doneAt=t.done?now():null; save(); refreshTodo(); }
+function tdDel(id){uiConfirm('删除该待办？',()=>{DB.todos=DB.todos.filter(x=>x.id!==id);save();closeModal();refreshTodo();toast('已删除');});}
+function refreshTodo(){ if(document.getElementById('pg-todo').classList.contains('active'))pages.todo(); if(document.getElementById('pg-dashboard').classList.contains('active'))pages.dashboard(); }
+
+/* ============================================================
+   9. 成果与简历
+   ============================================================ */
+pages.cv = function(){
+  const cv=DB.cv;
+  document.getElementById('pg-cv').innerHTML = `
+    <h2>👤 成果与简历 <span class="sub">论文 · 专利 · 获奖 · 技能 · 学术服务</span></h2>
+    <div class="card">
+      <h3>📄 发表论文 <span class="act"><span class="btn sm" onclick="cvpModal('paper')">+ 添加</span></span></h3>
+      ${cv.papers.length?`<table><tr><th>标题</th><th>作者</th><th>期刊</th><th>年份</th><th>状态</th><th>DOI</th><th></th></tr>
+        ${cv.papers.sort((a,b)=>b.year-a.year).map(p=>`<tr><td>${esc(p.title)}</td><td style="max-width:150px;">${esc(p.authors)}</td><td>${esc(p.venue)}</td><td>${p.year}</td><td><span class="tag ${p.status==='发表'?'t-green':p.status==='录用'?'t-cyan':'t-gold'}">${esc(p.status)}</span></td><td class="mono">${esc(p.doi||'')}</td><td><span class="btn sm" onclick="cvpModal('paper','${p.id}')">编辑</span></td></tr>`).join('')}
+      </table>`:'<div class="empty">暂无论文</div>'}
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;" class="resp2">
+      <div class="card">
+        <h3>🏆 获奖与荣誉 <span class="act"><span class="btn sm" onclick="cvpModal('award')">+</span></span></h3>
+        ${cv.awards.length?cv.awards.sort((a,b)=>b.year-a.year).map(a=>`<div style="padding:6px 0;border-bottom:1px solid var(--border);"><b>${esc(a.title)}</b> <span class="muted">· ${esc(a.org)} · ${a.year}</span> <span class="btn sm" onclick="cvpModal('award','${a.id}')">编辑</span></div>`).join(''):'<div class="empty">暂无</div>'}
+      </div>
+      <div class="card">
+        <h3>🛠 技能 <span class="act"><span class="btn sm" onclick="cvpModal('skill')">+</span></span></h3>
+        ${cv.skills.length?cv.skills.map(s=>`<div style="padding:6px 0;border-bottom:1px solid var(--border);"><b>${esc(s.name)}</b> <span class="tag t-blue">${esc(s.level)}</span> <span class="btn sm" onclick="cvpModal('skill','${s.id}')">编辑</span></div>`).join(''):'<div class="empty">暂无</div>'}
+      </div>
+    </div>
+    <div class="card">
+      <h3>🤝 学术服务 <span class="act"><span class="btn sm" onclick="cvpModal('service')">+</span></span></h3>
+      ${cv.services.length?cv.services.map(s=>`<div style="padding:6px 0;border-bottom:1px solid var(--border);"><b>${esc(s.role)}</b> · ${esc(s.org)} · ${s.year} <span class="btn sm" onclick="cvpModal('service','${s.id}')">编辑</span></div>`).join(''):'<div class="empty">暂无</div>'}
+    </div>
+    <div class="card">
+      <h3>📋 简历预览 <span class="act"><span class="btn sm" onclick="cvExport()">导出文本</span></span></h3>
+      <div class="cv-doc" id="cvPreview">${cvBuildPreview()}</div>
+    </div>
+  `;
+  applyResp();
+};
+function cvBuildPreview(){
+  const p=DB.profile, cv=DB.cv;
+  let h=`<h1>${esc(p.name||'同学')}</h1><div class="cvsub">${esc(p.degree||'博士')}研究生 · ${esc(p.school||'')} ${esc(p.major||'')} ${p.enrollYear?('· '+p.enrollYear+'级'):''} ${p.advisor?('· 导师：'+esc(p.advisor)):''}</div>`;
+  if(cv.papers.length){ h+='<h2>发表论文</h2><ul>'; cv.papers.sort((a,b)=>b.year-a.year).forEach(p=>{ h+=`<li>${p.authors?esc(p.authors)+'. ':''}${esc(p.title)}. <i>${esc(p.venue)}</i>, ${p.year}. ${p.doi?'DOI: '+esc(p.doi):''} <span style="color:#888">[${esc(p.status)}]</span></li>`; }); h+='</ul>'; }
+  if(cv.awards.length){ h+='<h2>获奖与荣誉</h2><ul>'; cv.awards.sort((a,b)=>b.year-a.year).forEach(a=>{ h+=`<li>${esc(a.title)}，${esc(a.org)}，${a.year}</li>`; }); h+='</ul>'; }
+  if(cv.skills.length){ h+='<h2>专业技能</h2><ul>'; cv.skills.forEach(s=>{ h+=`<li>${esc(s.name)}（${esc(s.level)}）</li>`; }); h+='</ul>'; }
+  if(cv.services.length){ h+='<h2>学术服务</h2><ul>'; cv.services.forEach(s=>{ h+=`<li>${esc(s.role)}，${esc(s.org)}，${s.year}</li>`; }); h+='</ul>'; }
+  return h;
+}
+function cvExport(){
+  const p=DB.profile,cv=DB.cv;
+  let t=`${p.name||'同学'}\n${p.degree||'博士'}研究生 · ${p.school||''} ${p.major||''} ${p.enrollYear?('· '+p.enrollYear+'级'):''} ${p.advisor?('· 导师：'+p.advisor):''}\n`;
+  if(cv.papers.length){t+='\n【发表论文】\n';cv.papers.sort((a,b)=>b.year-a.year).forEach(p=>{t+=`- ${p.authors?p.authors+'. ':''}${p.title}. ${p.venue}, ${p.year}. ${p.doi?'DOI: '+p.doi:''}\n`;});}
+  if(cv.awards.length){t+='\n【获奖与荣誉】\n';cv.awards.sort((a,b)=>b.year-a.year).forEach(a=>{t+=`- ${a.title}，${a.org}，${a.year}\n`;});}
+  if(cv.skills.length){t+='\n【专业技能】\n';cv.skills.forEach(s=>{t+=`- ${s.name}（${s.level}）\n`;});}
+  if(cv.services.length){t+='\n【学术服务】\n';cv.services.forEach(s=>{t+=`- ${s.role}，${s.org}，${s.year}\n`;});}
+  const blob=new Blob([t],{type:'text/plain;charset=utf-8'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='简历_'+(p.name||'')+'.txt'; a.click(); toast('已导出');
+}
+function cvpModal(type,id){
+  const arr = type==='paper'?DB.cv.papers:type==='award'?DB.cv.awards:type==='skill'?DB.cv.skills:DB.cv.services;
+  const item = id? arr.find(x=>x.id===id) : {};
+  let form='';
+  if(type==='paper'){ form=`<div class="form-grid">
+    <div class="fg full"><label>标题 *</label><input id="vf_title" value="${esc(item.title)}"></div>
+    <div class="fg full"><label>作者</label><input id="vf_authors" value="${esc(item.authors)}"></div>
+    <div class="fg"><label>期刊/会议</label><input id="vf_venue" value="${esc(item.venue)}"></div>
+    <div class="fg"><label>年份</label><input id="vf_year" value="${esc(item.year)}"></div>
+    <div class="fg"><label>状态</label><select id="vf_status">${['投稿中','修回','录用','发表'].map(s=>`<option ${item.status===s?'selected':''}>${s}</option>`).join('')}</select></div>
+    <div class="fg"><label>DOI</label><input id="vf_doi" value="${esc(item.doi)}"></div>
+  </div>`; }
+  else if(type==='award'){ form=`<div class="form-grid">
+    <div class="fg full"><label>奖项名称 *</label><input id="vf_title" value="${esc(item.title)}"></div>
+    <div class="fg"><label>颁发机构</label><input id="vf_org" value="${esc(item.org)}"></div>
+    <div class="fg"><label>年份</label><input id="vf_year" value="${esc(item.year)}"></div>
+  </div>`; }
+  else if(type==='skill'){ form=`<div class="form-grid">
+    <div class="fg"><label>技能名称 *</label><input id="vf_name" value="${esc(item.name)}"></div>
+    <div class="fg"><label>水平</label><select id="vf_level">${['入门','熟悉','熟练','精通'].map(s=>`<option ${item.level===s?'selected':''}>${s}</option>`).join('')}</select></div>
+  </div>`; }
+  else { form=`<div class="form-grid">
+    <div class="fg full"><label>角色 *</label><input id="vf_role" value="${esc(item.role)}" placeholder="如 审稿人/会议 Session Chair"></div>
+    <div class="fg"><label>机构/会议</label><input id="vf_org" value="${esc(item.org)}"></div>
+    <div class="fg"><label>年份</label><input id="vf_year" value="${esc(item.year)}"></div>
+  </div>`; }
+  openModal(`<h3>${id?'编辑':'添加'} <span class="close" onclick="closeModal()">✕</span></h3>${form}<div class="btn-row">${id?`<span class="btn danger sm" onclick="cvDel('${type}','${id}')">删除</span>`:''}<span class="btn" onclick="closeModal()">取消</span><span class="btn primary" onclick="cvSave('${type}','${id}')">保存</span></div>`);
+}
+function cvSave(type,id){
+  const arr = type==='paper'?DB.cv.papers:type==='award'?DB.cv.awards:type==='skill'?DB.cv.skills:DB.cv.services;
+  let obj={};
+  if(type==='paper'){obj={title:val('vf_title').trim(),authors:val('vf_authors').trim(),venue:val('vf_venue').trim(),year:val('vf_year').trim(),status:val('vf_status'),doi:val('vf_doi').trim()};if(!obj.title){toast('请填写标题');return;}}
+  else if(type==='award'){obj={title:val('vf_title').trim(),org:val('vf_org').trim(),year:val('vf_year').trim()};if(!obj.title){toast('请填写名称');return;}}
+  else if(type==='skill'){obj={name:val('vf_name').trim(),level:val('vf_level')};if(!obj.name){toast('请填写名称');return;}}
+  else{obj={role:val('vf_role').trim(),org:val('vf_org').trim(),year:val('vf_year').trim()};if(!obj.role){toast('请填写角色');return;}}
+  if(id){Object.assign(arr.find(x=>x.id===id),obj);}else{obj.id=uid();arr.push(obj);}
+  save();closeModal();pages.cv();toast('已保存');
+}
+function cvDel(type,id){uiConfirm('确认删除？',()=>{const arr=type==='paper'?DB.cv.papers:type==='award'?DB.cv.awards:type==='skill'?DB.cv.skills:DB.cv.services;DB.cv[type+'s']=arr.filter(x=>x.id!==id);save();closeModal();pages.cv();toast('已删除');});}
+
+/* ============================================================
+   10. 设置与数据
+   ============================================================ */
+pages.settings = function(){
+  const p=DB.profile;
+  document.getElementById('pg-settings').innerHTML = `
+    <h2>⚙ 设置与数据 <span class="sub">个人信息 · 数据导入导出 · 重置</span></h2>
+    <div class="card">
+      <h3>🔐 账号</h3>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:180px;">
+          <div style="font-size:15px;">${esc(CUR? (CUR.account||'访客体验') : '未登录')}</div>
+          <div class="muted" style="font-size:12px;margin-top:2px;">${CUR&&CUR.id!=='guest'?'邮箱/手机号账号 · 无需实名':'访客模式，数据仅在本设备'}</div>
+        </div>
+        <span class="btn sm" onclick="doLogout()">退出登录 / 切换账号</span>
+      </div>
+    </div>
+    <div class="card">
+      <h3>👤 个人信息</h3>
+      <div class="form-grid">
+        <div class="fg"><label>学位类型</label><select id="pf_degree">${['博士','硕士'].map(s=>`<option ${p.degree===s?'selected':''}>${s}</option>`).join('')}</select></div>
+        <div class="fg"><label>姓名</label><input id="pf_name" value="${esc(p.name)}"></div>
+        <div class="fg"><label>学校</label><input id="pf_school" value="${esc(p.school)}"></div>
+        <div class="fg"><label>专业/方向</label><input id="pf_major" value="${esc(p.major)}"></div>
+        <div class="fg"><label>导师</label><input id="pf_advisor" value="${esc(p.advisor)}"></div>
+        <div class="fg"><label>入学年份</label><input id="pf_ey" value="${esc(p.enrollYear)}"></div>
+        <div class="fg"><label>目标毕业年份</label><input id="pf_ty" value="${esc(p.targetYear)}"></div>
+      </div>
+      <div style="margin-top:10px;display:flex;gap:10px;">
+        <span class="btn primary sm" onclick="saveProfile()">保存信息</span>
+        <span class="btn sm" onclick="showOnboard()">重新运行新手引导</span>
+      </div>
+    </div>
+    <div class="card">
+      <h3>💾 数据管理</h3>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;">
+        <div class="dm-btn" onclick="dataExport()"><span class="ic">📥</span><span class="lb">导出全部数据</span><span class="ds">JSON 备份</span></div>
+        <div class="dm-btn" onclick="dataImport()"><span class="ic">📤</span><span class="lb">导入数据</span><span class="ds">从 JSON 恢复</span></div>
+        <div class="dm-btn" onclick="loadDemo()"><span class="ic">🎯</span><span class="lb">载入示例数据</span><span class="ds">体验完整功能</span></div>
+        <div class="dm-btn" onclick="dataReset()" style="border-color:var(--danger);"><span class="ic">🗑</span><span class="lb" style="color:var(--danger);">清空所有数据</span><span class="ds">不可恢复</span></div>
+      </div>
+      <div class="tips">数据存储在浏览器本地（localStorage），不会上传服务器。建议定期导出备份。换浏览器/设备需重新导入。</div>
+    </div>
+    <div class="card">
+      <h3>ℹ 关于 DRSTUDY</h3>
+      <p class="muted" style="font-size:13px;">DRSTUDY 是面向硕博研究生的科研进度与学术生涯管理工作台，涵盖文献、论文写作、课题里程碑、实验数据、导师汇报、学术活动、待办与成果简历八大模块，内置基于科研周期的智能提示引擎。单文件应用，数据本地存储，开箱即用，适合直接分享给同学使用。</p>
+    </div>
+  `;
+};
+function saveProfile(){ DB.profile={degree:val('pf_degree'),name:val('pf_name').trim(),school:val('pf_school').trim(),major:val('pf_major').trim(),advisor:val('pf_advisor').trim(),enrollYear:val('pf_ey').trim(),targetYear:val('pf_ty').trim()}; save(); toast('已保存'); }
+function dataExport(){ const blob=new Blob([JSON.stringify(DB,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='drstudy_backup_'+today()+'.json'; a.click(); toast('已导出'); }
+function dataImport(){ const inp=document.createElement('input'); inp.type='file'; inp.accept='.json'; inp.onchange=e=>{ const f=e.target.files[0]; if(!f)return; const r=new FileReader(); r.onload=()=>{ try{ const d=JSON.parse(r.result); if(!d.literature)throw 0; DB=d; save(); go('dashboard'); toast('导入成功'); }catch(err){ toast('文件格式错误'); } }; r.readAsText(f); }; inp.click(); }
+function dataReset(){ uiConfirm('⚠️ 确认清空所有数据？此操作不可恢复！建议先导出备份。',()=>{ uiConfirm('再次确认：真的要清空全部数据吗？',()=>{ DB=defaultData(); save(); go('dashboard'); showOnboard(); toast('已清空，重新开始'); }); }); }
+function loadDemo(){ const doIt=()=>{ DB=genDemo(); DB.settings.isDemo=true; DB.settings.onboarded=true; save(); go('dashboard'); toast('已载入示例数据，可随时清除并录入你的信息'); }; if(DB.literature.length){ uiConfirm('将覆盖现有数据，确认载入示例？',doIt); } else doIt(); }
+function exitDemo(){ uiConfirm('将清除示例数据，开始录入你自己的信息。继续？',()=>{ DB=defaultData(); DB.settings.onboarded=true; save(); showOnboard(); toast('已清除示例数据'); }); }
+
+/* ---------- 工具 ---------- */
+function val(id){ const el=document.getElementById(id); return el?el.value:''; }
+function applyResp(){ const m=window.matchMedia('(max-width:860px)'); document.querySelectorAll('.resp2').forEach(el=>{ el.style.gridTemplateColumns=m.matches?'1fr':'1fr 1fr'; }); }
+window.addEventListener('resize',applyResp);
+
+/* ============================================================
+   首次使用引导（Onboarding）
+   ============================================================ */
+let obStep = 0;
+let obData = {degree:'博士',name:'',school:'',major:'',advisor:'',enrollYear:'',targetYear:''};
+
+function showOnboard(){
+  obStep = 0;
+  obData = Object.assign({}, DB.profile);
+  document.getElementById('onboard').classList.add('show');
+  renderOb();
+}
+function hideOnboard(){
+  document.getElementById('onboard').classList.remove('show');
+}
+function obNext(){
+  // 步骤校验
+  if(obStep===1 && !obData.name.trim()){ toast('请填写姓名（或点击跳过）'); return; }
+  obStep++;
+  if(obStep>2){
+    // 完成：保存并进入
+    DB.profile = Object.assign({}, obData);
+    DB.settings.onboarded = true;
+    save(); hideOnboard(); go('dashboard'); toast('欢迎来到 DRSTUDY，'+(DB.profile.name||'同学')+'！');
+    return;
+  }
+  renderOb();
+}
+function obPrev(){ if(obStep>0){obStep--; renderOb();} }
+function obSkip(){
+  // 跳过：保存已填内容
+  DB.profile = Object.assign({}, obData);
+  DB.settings.onboarded = true;
+  save(); hideOnboard(); go('dashboard');
+}
+function obSet(k,v){ obData[k]=v; if(k==='degree') renderOb(); }
+
+function renderOb(){
+  const dots = [0,1,2].map(i=>`<div class="ob-dot ${i<=obStep?'on':''}"></div>`).join('');
+  let body='';
+  if(obStep===0){
+    body = `
+      <div class="ob-title">欢迎使用 DRSTUDY</div>
+      <div class="ob-sub">博士 / 硕士研究生科研进度与学术生涯管理工作台</div>
+      <div class="ob-steps">${dots}</div>
+      <div class="ob-feat">
+        <div>📚 <b>文献管理</b><br><span class="muted">阅读状态·笔记·关键观点</span></div>
+        <div>✍ <b>论文写作</b><br><span class="muted">章节进度·投稿追踪</span></div>
+        <div>🚩 <b>课题里程碑</b><br><span class="muted">开题·中期·答辩倒计时</span></div>
+        <div>🧑‍🏫 <b>导师汇报</b><br><span class="muted">周期管理·反馈记录</span></div>
+        <div>🔬 <b>实验与数据</b><br><span class="muted">实验·调研·工具链</span></div>
+        <div>🤖 <b>智能提示</b><br><span class="muted">基于进度自动提醒</span></div>
+      </div>
+      <div class="ob-btns">
+        <span class="ob-skip" onclick="obSkip()">跳过，直接使用</span>
+        <span class="spacer"></span>
+        <span class="btn primary" onclick="obNext()">开始设置 →</span>
+      </div>
+    `;
+  } else if(obStep===1){
+    body = `
+      <div class="ob-q">你是什么类型的研究生？</div>
+      <div class="ob-steps">${dots}</div>
+      <div class="ob-degrees">
+        <div class="ob-degree ${obData.degree==='博士'?'sel':''}" onclick="obSet('degree','博士')">
+          <div class="d1">🎓 博士研究生</div>
+          <div class="d2">开题·中期·预答辩·盲审·答辩</div>
+        </div>
+        <div class="ob-degree ${obData.degree==='硕士'?'sel':''}" onclick="obSet('degree','硕士')">
+          <div class="d1">📘 硕士研究生</div>
+          <div class="d2">开题·中期·毕业答辩</div>
+        </div>
+      </div>
+      <div class="ob-fields">
+        <div class="fg"><label>姓名 *</label><input id="ob_name" value="${esc(obData.name)}" placeholder="怎么称呼你？"></div>
+        <div class="fg"><label>学校</label><input id="ob_school" value="${esc(obData.school)}" placeholder="如 东南大学"></div>
+        <div class="fg"><label>专业/研究方向</label><input id="ob_major" value="${esc(obData.major)}" placeholder="如 建筑技术科学"></div>
+      </div>
+      <div class="ob-btns">
+        <span class="ob-skip" onclick="obSkip()">跳过</span>
+        <span class="spacer"></span>
+        <span class="btn" onclick="obPrev()">← 上一步</span>
+        <span class="btn primary" onclick="obCollect();obNext()">下一步 →</span>
+      </div>
+    `;
+  } else {
+    const y = new Date().getFullYear();
+    body = `
+      <div class="ob-q">再补充一点学术信息</div>
+      <div class="ob-steps">${dots}</div>
+      <div class="ob-fields">
+        <div class="fg"><label>导师姓名</label><input id="ob_advisor" value="${esc(obData.advisor)}" placeholder="如 李教授"></div>
+        <div class="fg"><label>入学年份</label><input id="ob_ey" value="${esc(obData.enrollYear)}" placeholder="如 ${y}"></div>
+        <div class="fg"><label>目标毕业年份</label><input id="ob_ty" value="${esc(obData.targetYear)}" placeholder="如 ${y+3}（用于毕业倒计时提醒）"></div>
+      </div>
+      <div class="tips" style="margin-top:4px;">💡 这些信息用于个性化工作台、简历生成和毕业倒计时提醒，之后可随时在「设置」中修改。数据仅存储在你的浏览器本地。</div>
+      <div class="ob-btns">
+        <span class="ob-skip" onclick="obSkip()">跳过</span>
+        <span class="spacer"></span>
+        <span class="btn" onclick="obPrev()">← 上一步</span>
+        <span class="btn primary" onclick="obCollect();obNext()">完成，进入工作台 🎉</span>
+      </div>
+    `;
+  }
+  document.getElementById('obCard').innerHTML = body;
+}
+function obCollect(){
+  const m = {'ob_name':'name','ob_school':'school','ob_major':'major','ob_advisor':'advisor','ob_ey':'enrollYear','ob_ty':'targetYear'};
+  Object.keys(m).forEach(id=>{ const el=document.getElementById(id); if(el) obData[m[id]]=el.value.trim(); });
+}
+
+/* ============================================================
+   账号登录 / 注册（本地账号，邮箱或手机号，无需实名）
+   ============================================================ */
+function showAuth(){ document.getElementById('auth').classList.add('show'); renderAuth('register'); }
+function hideAuth(){ document.getElementById('auth').classList.remove('show'); }
+function renderAuth(tab){
+  const isReg = tab!=='login';
+  document.getElementById('authCard').innerHTML = `
+    <div style="text-align:center;">
+      <div class="auth-logo">DRSTUDY</div>
+      <div class="auth-sub">研究生科研工作台 · 注册后即可录入你的信息</div>
+    </div>
+    <div class="auth-tabs">
+      <div class="auth-tab ${isReg?'on':''}" onclick="renderAuth('register')">注册新账号</div>
+      <div class="auth-tab ${!isReg?'on':''}" onclick="renderAuth('login')">登录</div>
+    </div>
+    <div class="ob-fields">
+      <div class="fg"><label>邮箱 或 手机号 *</label><input id="au_acc" placeholder="如 name@univ.edu.cn 或 138xxxxxxxx" autocomplete="username" inputmode="${isReg?'text':'text'}"></div>
+      <div class="fg"><label>密码 *</label><input id="au_pw" type="password" placeholder="至少 6 位" autocomplete="${isReg?'new-password':'current-password'}"></div>
+      ${isReg?`<div class="fg"><label>确认密码 *</label><input id="au_pw2" type="password" placeholder="再输入一次密码"></div>`:''}
+    </div>
+    ${isReg?`<div class="tips" style="margin-top:4px;">🔒 无需实名认证。账号仅用于在本设备区分不同用户、保护你的数据；所有数据存储在浏览器本地，不会上传服务器。</div>`:''}
+    <div class="ob-btns" style="margin-top:16px;">
+      <span class="ob-skip" onclick="guestLogin()">先体验，不注册</span>
+      <span class="spacer"></span>
+      ${isReg
+        ?`<span class="btn primary" onclick="doRegister()">注册并进入 →</span>`
+        :`<span class="btn primary" onclick="doLogin()">登录 →</span>`}
+    </div>
+  `;
+}
+
+/* ============================================================
+   智能提示引擎
+   ============================================================ */
+function genSuggestions(){
+  const s=[];
+  // 1. 里程碑临近
+  DB.milestones.filter(m=>m.status!=='已完成').forEach(m=>{
+    const d=daysUntil(m.date);
+    if(d!==null){
+      if(d<0) s.push({lvl:'high',txt:`里程碑「${m.title}」已逾期 ${-d} 天，请尽快推进或调整计划`});
+      else if(d<=7) s.push({lvl:'high',txt:`里程碑「${m.title}」将在 ${d} 天后到来（${m.date}），确认准备事项是否就绪`});
+      else if(d<=30) s.push({lvl:'mid',txt:`里程碑「${m.title}」还有 ${d} 天，建议开始准备`});
+    }
+  });
+  // 2. 导师汇报到期
+  const mt=DB.mentor;
+  if(mt.cycleDays&&mt.lastReportDate){
+    const d=new Date(mt.lastReportDate); d.setDate(d.getDate()+parseInt(mt.cycleDays));
+    const next=d.toISOString().slice(0,10); const dd=daysUntil(next);
+    if(dd<0) s.push({lvl:'high',txt:`导师汇报已逾期 ${-dd} 天（上次：${mt.lastReportDate}，周期 ${mt.cycleDays} 天），建议尽快安排汇报`});
+    else if(dd<=3) s.push({lvl:'mid',txt:`距下次导师汇报约 ${dd} 天，建议整理本周进展和待确认问题`});
+  }
+  // 3. 文献阅读节奏
+  const litRead=DB.literature.filter(l=>l.status==='待读');
+  if(litRead.length>=5) s.push({lvl:'low',txt:`待读文献堆积 ${litRead.length} 篇，建议安排集中阅读时间`});
+  const recent=DB.literature.filter(l=>{ const ad=new Date(l.addedAt); return (new Date()-ad)/86400000>14 && l.status==='待读'; });
+  if(recent.length>=3) s.push({lvl:'mid',txt:`有 ${recent.length} 篇文献入库超过 2 周仍未阅读，注意不要积压`});
+  // 4. 写作进度预警
+  DB.thesis.chapters.forEach(c=>{
+    if(c.deadline&&c.status!=='已完成'){
+      const d=daysUntil(c.deadline); const cp=c.targetWords?c.currentWords/c.targetWords:0;
+      if(d!==null&&d>=0&&d<=14&&cp<0.7) s.push({lvl:cp<0.4?'high':'mid',txt:`章节「${c.title}」距截止 ${d} 天，进度仅 ${Math.round(cp*100)}%，需加速`});
+    }
+  });
+  // 5. 待办逾期
+  const overdue=DB.todos.filter(t=>!t.done&&t.due&&daysUntil(t.due)<0);
+  if(overdue.length) s.push({lvl:overdue.length>=3?'high':'mid',txt:`有 ${overdue.length} 项待办已逾期，建议优先处理或重新排期`});
+  const urgent=DB.todos.filter(t=>!t.done&&t.priority==='紧急');
+  if(urgent.length) s.push({lvl:'high',txt:`有 ${urgent.length} 项紧急待办待处理`});
+  // 6. 小论文状态停滞
+  DB.thesis.papers.forEach(p=>{
+    if(p.status==='投稿中'&&p.submittedDate){
+      const d=daysUntil(p.submittedDate); const wait=-d;
+      if(wait>90) s.push({lvl:'mid',txt:`小论文「${p.title}」投稿已 ${wait} 天，可考虑适度跟进或准备备选期刊`});
+    }
+  });
+  // 7. 毕业倒计时
+  const p=DB.profile;
+  if(p.targetYear){
+    const gradDate=p.targetYear+'-06-30'; const d=daysUntil(gradDate);
+    if(d>0&&d<365) s.push({lvl:d<180?'high':'mid',txt:`距目标毕业（${gradDate}）还有 ${d} 天，合理规划剩余时间`});
+  }
+  return s.length? s.slice(0,8): [];
+}
+
+/* ============================================================
+   示例数据
+   ============================================================ */
+function genDemo(){
+  const d=defaultData();
+  d.profile={name:'张同学',school:'东南大学',major:'建筑技术科学',advisor:'李教授',enrollYear:'2023',targetYear:'2026',degree:'博士'};
+  d.literature=[
+    {id:uid(),title:'A review of thermal comfort in residential buildings',authors:'Wang Z, et al.',year:'2024',venue:'Building and Environment',doi:'10.xxxx',tags:['热舒适','综述'],status:'已读',rating:5,notes:'系统综述了住宅热舒适研究方法，DLNM方法值得借鉴。',keyPoints:['PMV模型在自然通风建筑中偏差较大','适应性模型更适合住宅场景'],addedAt:now()},
+    {id:uid(),title:'Indoor air quality and health in elderly care facilities',authors:'Chen L, et al.',year:'2023',venue:'Science of the Total Environment',doi:'',tags:['室内空气品质','适老'],status:'在读',rating:0,notes:'',keyPoints:[],addedAt:now()},
+    {id:uid(),title:'Physics-informed neural networks for building energy',authors:'Liu Y, et al.',year:'2024',venue:'Applied Energy',doi:'',tags:['PINN','能耗预测'],status:'待读',rating:0,notes:'',keyPoints:[],addedAt:now()}
+  ];
+  d.thesis={
+    chapters:[
+      {id:uid(),title:'第一章 绪论',targetWords:8000,currentWords:7500,status:'修改中',deadline:'2025-12-31',notes:''},
+      {id:uid(),title:'第二章 文献综述',targetWords:12000,currentWords:9000,status:'写作中',deadline:'2025-11-30',notes:''},
+      {id:uid(),title:'第三章 现场实测与方法',targetWords:15000,currentWords:3000,status:'写作中',deadline:'2026-02-28',notes:''},
+      {id:uid(),title:'第四章 数据分析与模型',targetWords:18000,currentWords:0,status:'未开始',deadline:'2026-05-31',notes:''}
+    ],
+    papers:[
+      {id:uid(),title:'热-污耦合下养老机构室内环境评价',targetVenue:'Building and Environment',status:'投稿中',submittedDate:'2025-09-15',notes:'一审中'},
+      {id:uid(),title:'基于PINN的建筑能耗预测方法',targetVenue:'Applied Energy',status:'写作中',submittedDate:'',notes:''}
+    ]
+  };
+  d.milestones=[
+    {id:uid(),title:'博士学位论文开题报告',type:'开题',date:'2024-03-15',status:'已完成',description:'已完成开题答辩',tasks:['文献综述','研究方案','技术路线图']},
+    {id:uid(),title:'博士中期考核',type:'中期',date:'2025-12-20',status:'进行中',description:'需提交中期报告并汇报进展',tasks:['中期报告','已发表论文清单','后续研究计划']},
+    {id:uid(),title:'预答辩',type:'预答辩',date:'2026-05-10',status:'未开始',description:'',tasks:['论文初稿完成','预答辩PPT']},
+    {id:uid(),title:'正式答辩',type:'答辩',date:'2026-06-15',status:'未开始',description:'',tasks:['盲审通过','答辩PPT','答辩委员会']}
+  ];
+  d.research=[
+    {id:uid(),type:'实验',title:'冬季养老机构热-污-味现场实测',date:'2025-01-10',description:'在南京市某养老机构开展为期2周的现场实测',data:['温度','湿度','CO2','PM2.5','TVOC','甲醛'],tools:['HOBO数据记录仪','TSI粉尘仪','Radiello被动采样器'],notes:'共采集8个房间，每15分钟一组数据'},
+    {id:uid(),type:'方法工具',title:'DLNM交叉基模型构建',date:'2025-03-01',description:'使用分布式滞后非线性模型分析暴露-健康效应',data:[],tools:['R语言','dlnm包'],notes:''}
+  ];
+  d.mentor={cycleDays:14,lastReportDate:'2025-09-01',reports:[
+    {id:uid(),date:'2025-09-01',content:'1. 完成养老机构现场实测数据清洗\n2. 完成第一章绪论初稿\n3. 小论文投稿Building and Environment',feedback:'数据清洗方法规范，绪论结构清晰。建议第三章增加实测方案的合理性论证。小论文注意跟进一审进度。',actionItems:['补充第三章实测方案论证','两周后汇报DLNM建模进展','关注小论文审稿状态']}
+  ]};
+  d.academic=[
+    {id:uid(),type:'会议',title:'第十一届建筑环境与能源应用学术年会',date:'2025-10-18',location:'西安',role:'口头报告',notes:'报告题目：热-污耦合适老环境评价'},
+    {id:uid(),type:'交流访问',title:'赴香港理工大学联合培养',date:'2025-02-01',location:'中国香港',role:'访学',notes:'为期6个月'}
+  ];
+  d.todos=[
+    {id:uid(),text:'完成第三章实测方案合理性论证',project:'学位论文第三章',context:'@电脑',status:'next',due:today(),priority:'高',done:false,createdAt:now()},
+    {id:uid(),text:'整理DLNM建模代码并测试',project:'第四章建模',context:'@电脑',status:'inbox',due:'',priority:'中',done:false,createdAt:now()},
+    {id:uid(),text:'跟进小论文一审审稿状态',project:'小论文-热污耦合',context:'',status:'waiting',due:'',priority:'中',done:false,createdAt:now()},
+    {id:uid(),text:'准备中期考核PPT',project:'中期考核',context:'@电脑',status:'project',due:'2025-12-15',priority:'紧急',done:false,createdAt:now()}
+  ];
+  d.cv={
+    papers:[
+      {id:uid(),title:'基于实测的养老机构冬季热环境评价',authors:'张同学, 李教授',venue:'暖通空调',year:'2024',status:'发表',doi:'10.xxxx/xxxx'}
+    ],
+    awards:[
+      {id:uid(),title:'研究生国家奖学金',org:'教育部',year:'2024'},
+      {id:uid(),title:'东南大学优秀研究生',org:'东南大学',year:'2024'}
+    ],
+    skills:[
+      {id:uid(),name:'EnergyPlus',level:'熟练'},
+      {id:uid(),name:'Python',level:'熟练'},
+      {id:uid(),name:'R语言',level:'熟悉'},
+      {id:uid(),name:'CONTAM',level:'熟悉'}
+    ],
+    services:[
+      {id:uid(),title:'Building and Environment 审稿人',role:'审稿人',org:'Elsevier',year:'2025'}
+    ]
+  };
+  return d;
+}
+
+/* ---------- 启动 ---------- */
+let APP_READY = false;
+function bootApp(){
+  if(APP_READY) return; APP_READY = true;
+  updateBadges();
+  go('dashboard');
+  applyResp();
+  // 首次使用：显示引导向导
+  if(!DB.settings.onboarded && !DB.profile.name){ showOnboard(); }
+  // 老用户首次升级到新版：补标记
+  if(!DB.settings.onboarded && DB.profile.name){ DB.settings.onboarded = true; save(); }
+}
+if(initSession()){ bootApp(); } else { showAuth(); }
+// PWA Service Worker 注册（本地文件打开时静默失败，不影响使用）
+if('serviceWorker' in navigator && location.protocol.startsWith('http')){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
+</script>
+</body>
+</html>
