@@ -1,4 +1,4 @@
-const CACHE = 'drstudy-v1';
+const CACHE = 'drstudy-v2';
 const ASSETS = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png', './apple-touch-icon-180.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
@@ -8,6 +8,8 @@ self.addEventListener('activate', e => {
 });
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
+  // 云端配置始终走网络，改配置立即生效
+  if (e.request.url.indexOf('cloud-config.js') !== -1) return;
   e.respondWith(
     caches.match(e.request).then(r => r || fetch(e.request).then(res => {
       const copy = res.clone();

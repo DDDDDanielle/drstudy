@@ -10,6 +10,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>DRSTUDY · 研究生工作台 — 科研进度与学术生涯管理</title>
+<!-- 云端同步配置（腾讯云 CloudBase）。填好 cloud-config.js 中的环境 ID 即自动启用；缺省时为纯本地模式 -->
+<script src="cloud-config.js"></script>
 <style>
 :root{
   --bg:#121622; --panel:#1b2133; --panel2:#212944; --border:#2e3856;
@@ -28,6 +30,11 @@ a{color:var(--accent);text-decoration:none;}
 .brand .logo{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,#6f7ef0,#4ec9d4);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;color:#121622;}
 .brand .t1{font-size:16px;font-weight:700;color:#eef2ff;}
 .brand .t2{font-size:11px;color:var(--muted);}
+/* 云端同步状态 */
+.cloud-pill{font-size:11px;border-radius:8px;padding:3px 10px;margin:0 6px 12px;text-align:center;border:1px solid var(--border);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.cloud-pill.ok{color:var(--ok);border-color:rgba(95,207,151,.45);}
+.cloud-pill.err{color:var(--danger);border-color:rgba(224,95,111,.45);}
+.cloud-pill.sync{color:var(--accent2);border-color:rgba(78,201,212,.45);}
 .nav-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;color:var(--muted);margin:3px 0;font-size:14px;transition:all .15s;}
 .nav-item:hover{background:var(--panel2);color:var(--text);}
 .nav-item.active{background:linear-gradient(90deg,#26304e,#212944);color:var(--accent);}
@@ -216,6 +223,7 @@ tr:hover td{background:#242c46;}
       <div class="logo">DR</div>
       <div><div class="t1">DRSTUDY</div><div class="t2">研究生工作台</div></div>
     </div>
+    <div id="cloudPill" class="cloud-pill">☁ 本地模式</div>
     <div class="nav-item active" data-page="dashboard"><span class="ico">◎</span><span class="tx">工作台</span></div>
     <div class="nav-sec">科研管理</div>
     <div class="nav-item" data-page="literature"><span class="ico">📚</span><span class="tx">文献管理</span><span class="badge" id="nav-lit">0</span></div>
@@ -334,17 +342,24 @@ function doRegister(){
   localStorage.setItem(SESS_KEY, id);
   CUR=account; DB=loadAccountData(id);
   hideAuth(); bootApp();
+  cloudRegister(acc, account.pw, DB); // 云端登记（若已启用）
   if(!DB.settings.onboarded && !DB.profile.name){ showOnboard(); }
   toast('注册成功，欢迎！');
 }
 function doLogin(){
   const acc = val('au_acc').trim(), pw = val('au_pw');
   const a = getAccounts().find(x=>x.account===acc);
-  if(!a){ toast('账号不存在，请先注册'); return; }
+  if(!a){
+    // 本机没有此账号：尝试云端登录（跨设备）
+    if(CB.on){ toast('正在从云端登录…'); cloudLogin(acc, pw); }
+    else { toast('账号不存在，请先注册'); }
+    return;
+  }
   if(a.pw!==pwHash(pw+'·drbuddy')){ toast('密码错误'); return; }
   localStorage.setItem(SESS_KEY, a.id);
   CUR=a; DB=loadAccountData(a.id);
   hideAuth(); bootApp();
+  cloudBootSync(); // 拉取云端最新
   toast('欢迎回来，'+(DB.profile.name||acc));
 }
 function guestLogin(){
@@ -356,6 +371,94 @@ function guestLogin(){
 }
 function doLogout(){
   uiConfirm('退出当前账号？数据保留在本设备，可随时重新登录。',()=>{ localStorage.removeItem(SESS_KEY); location.reload(); });
+}
+
+/* ---------- 云端同步（腾讯云 CloudBase · 可选后端） ----------
+   原理：cloud-config.js 配置环境 ID → 动态加载 js-sdk → 匿名登录（设备身份）
+   → 所有账号读写均通过云函数 drbuddyCloud 完成（数据库对客户端关闭，仅云函数可访问）
+   未配置 / 云端不可用时自动退回纯本地模式，不影响使用。 */
+const CB = {on:false, app:null, lastSync:''};
+function cloudConf(){ try{ return window.DRSTUDY_CLOUD||{}; }catch(e){ return {}; } }
+function cloudPill(msg, cls){
+  const p = document.getElementById('cloudPill'); if(!p) return;
+  p.textContent = msg; p.className = 'cloud-pill ' + (cls||'');
+}
+function cloudInit(){
+  const c = cloudConf();
+  if(!c.env){ cloudPill('☁ 本地模式'); return; }   // 未配置：纯本地模式
+  cloudPill('☁ 连接云端…','sync');
+  const s = document.createElement('script');
+  const CDNS = ['https://cdn.jsdelivr.net/npm/@cloudbase/js-sdk@2/dist/cloudbase.full.js',
+                'https://unpkg.com/@cloudbase/js-sdk@2/dist/cloudbase.full.js'];
+  let ci = 0;
+  s.src = CDNS[0];
+  s.onload = async () => {
+    try{
+      CB.app = cloudbase.init({env:c.env});
+      const auth = CB.app.auth({persistence:'local'});
+      if(!auth.hasLoginState()) await auth.signInAnonymously();
+      CB.on = true;
+      cloudPill('☁ 云端已连接','ok');
+      cloudBootSync();
+    }catch(e){ console.warn('CloudBase init fail', e); cloudPill('☁ 云端未连接','err'); }
+  };
+  s.onerror = () => {
+    ci++;
+    if(ci < CDNS.length){ s.src = CDNS[ci]; }
+    else { cloudPill('☁ 云端未连接','err'); }
+  };
+  document.head.appendChild(s);
+}
+function cloudCall(data){
+  if(!CB.on) return Promise.resolve(null);
+  return CB.app.callFunction({name: cloudConf().func||'drbuddyCloud', data})
+    .then(r => r && r.result).catch(e => { cloudPill('☁ 云端不可用','err'); return null; });
+}
+/* 保存后防抖推送云端 */
+let _cpTimer = null;
+function cloudPush(){
+  if(!CB.on || !CUR || CUR.id==='guest') return;
+  cloudPill('☁ 同步中…','sync');
+  clearTimeout(_cpTimer);
+  _cpTimer = setTimeout(async () => {
+    const r = await cloudCall({action:'save', account:CUR.account, pw:CUR.pw||'', data:DB});
+    if(r && r.ok){ CB.lastSync = new Date().toTimeString().slice(0,5); cloudPill('☁ 已同步 '+CB.lastSync,'ok'); }
+    else if(r && r.err){ cloudPill('☁ 同步失败','err'); }
+  }, 1500);
+}
+/* 启动/登录后拉取云端最新数据（云端较新才覆盖本地） */
+async function cloudBootSync(){
+  if(!CB.on || !CUR || CUR.id==='guest' || !CUR.account || !CUR.pw) return;
+  const r = await cloudCall({action:'load', account:CUR.account, pw:CUR.pw});
+  if(!r || !r.ok) return;
+  const cloudAt = r.updatedAt||'';
+  const localAt = (DB.settings&&DB.settings.updatedAt)||'';
+  if(cloudAt > localAt && r.data){
+    localStorage.setItem(dataKey(CUR.id), JSON.stringify(r.data));
+    DB = loadAccountData(CUR.id);
+    save();
+    if(APP_READY){ go(CUR_PAGE); toast('已从云端同步最新数据'); }
+  }
+}
+/* 跨设备登录：本地无此账号时到云端验证并拉取 */
+async function cloudLogin(acc, pw){
+  const r = await cloudCall({action:'login', account:acc, pw:pwHash(pw+'·drbuddy')});
+  if(!r){ toast('云端暂时无法连接，请稍后再试'); return; }
+  if(r.err==='noaccount'){ toast('账号不存在，请先注册'); return; }
+  if(r.err==='wrongpw'){ toast('密码错误'); return; }
+  const account = {id:uid(), account:acc, pw:pwHash(pw+'·drbuddy')};
+  const accs = getAccounts(); accs.push(account); setAccounts(accs);
+  localStorage.setItem(dataKey(account.id), JSON.stringify(r.data||defaultData()));
+  localStorage.setItem(SESS_KEY, account.id);
+  CUR=account; DB=loadAccountData(account.id);
+  hideAuth(); bootApp();
+  toast('欢迎回来，'+(DB.profile.name||acc));
+}
+/* 注册后把账号登记到云端 */
+async function cloudRegister(account, pwH, data){
+  if(!CB.on) return;
+  const r = await cloudCall({action:'register', account, pw:pwH, data});
+  if(r && r.err==='exists'){ toast('提示：该账号已在其他设备注册过，本设备将无法云同步它'); }
 }
 
 function load(){
@@ -371,7 +474,7 @@ function load(){
     return d;
   }catch(e){ return defaultData(); }
 }
-function save(){ localStorage.setItem(dataKey(CUR?CUR.id:'guest'), JSON.stringify(DB)); updateBadges(); }
+function save(){ DB.settings.updatedAt = now(); localStorage.setItem(dataKey(CUR?CUR.id:'guest'), JSON.stringify(DB)); updateBadges(); cloudPush(); }
 function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.style.display='block'; clearTimeout(t._t); t._t=setTimeout(()=>t.style.display='none',2200); }
 
 /* ---------- 导航 ---------- */
@@ -379,7 +482,9 @@ const pages = {};
 document.querySelectorAll('.nav-item').forEach(el=>{
   el.addEventListener('click',()=>go(el.dataset.page));
 });
+let CUR_PAGE = 'dashboard';
 function go(page){
+  CUR_PAGE = page;
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active',n.dataset.page===page));
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   let pg = document.getElementById('pg-'+page);
@@ -1060,13 +1165,23 @@ pages.settings = function(){
         <div class="dm-btn" onclick="loadDemo()"><span class="ic">🎯</span><span class="lb">载入示例数据</span><span class="ds">体验完整功能</span></div>
         <div class="dm-btn" onclick="dataReset()" style="border-color:var(--danger);"><span class="ic">🗑</span><span class="lb" style="color:var(--danger);">清空所有数据</span><span class="ds">不可恢复</span></div>
       </div>
-      <div class="tips">数据存储在浏览器本地（localStorage），不会上传服务器。建议定期导出备份。换浏览器/设备需重新导入。</div>
+      <div class="tips">数据默认存储在浏览器本地。若站点已接入云端（侧边栏显示"☁ 云端已连接"），账号数据会自动同步到云端，换设备登录同一账号即可继续使用，云端数据保存在腾讯云开发（CloudBase）。建议定期导出 JSON 备份。</div>
+    </div>
+    <div class="card">
+      <h3>☁ 云端同步</h3>
+      <p class="muted" style="font-size:13px;" id="cloudInfo">—</p>
     </div>
     <div class="card">
       <h3>ℹ 关于 DRSTUDY</h3>
       <p class="muted" style="font-size:13px;">DRSTUDY 是面向硕博研究生的科研进度与学术生涯管理工作台，涵盖文献、论文写作、课题里程碑、实验数据、导师汇报、学术活动、待办与成果简历八大模块，内置基于科研周期的智能提示引擎。单文件应用，数据本地存储，开箱即用，适合直接分享给同学使用。</p>
     </div>
   `;
+  const ci = document.getElementById('cloudInfo');
+  if(ci){
+    ci.textContent = CB.on
+      ? ('已连接云端（腾讯云开发 CloudBase · 环境 '+(cloudConf().env||'')+'）。账号数据自动双向同步：本机修改后约 2 秒上传，登录时自动拉取云端最新版。'+(CB.lastSync?('上次同步：'+CB.lastSync):''))
+      : '当前为本地模式（数据仅保存在本设备浏览器）。站点管理员在部署目录的 cloud-config.js 中填入腾讯云 CloudBase 环境 ID 后，即可自动启用云端同步。';
+  }
 };
 function saveProfile(){ DB.profile={degree:val('pf_degree'),name:val('pf_name').trim(),school:val('pf_school').trim(),major:val('pf_major').trim(),advisor:val('pf_advisor').trim(),enrollYear:val('pf_ey').trim(),targetYear:val('pf_ty').trim()}; save(); toast('已保存'); }
 function dataExport(){ const blob=new Blob([JSON.stringify(DB,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='drstudy_backup_'+today()+'.json'; a.click(); toast('已导出'); }
@@ -1358,6 +1473,8 @@ function bootApp(){
   if(!DB.settings.onboarded && DB.profile.name){ DB.settings.onboarded = true; save(); }
 }
 if(initSession()){ bootApp(); } else { showAuth(); }
+// 云端同步初始化（cloud-config.js 未配置环境 ID 时为纯本地模式）
+cloudInit();
 // PWA Service Worker 注册（本地文件打开时静默失败，不影响使用）
 if('serviceWorker' in navigator && location.protocol.startsWith('http')){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
 </script>
