@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>DRSTUDY · 研究生工作台 — 科研进度与学术生涯管理</title>
-<!-- 云端同步配置（腾讯云 CloudBase）。填好 cloud-config.js 中的环境 ID 即自动启用；缺省时为纯本地模式 -->
+<!-- 云端同步配置（Supabase）。填好 cloud-config.js 中的项目 URL 和 anon key 即自动启用；缺省时为纯本地模式 -->
 <script src="cloud-config.js"></script>
 <style>
 :root{
@@ -342,7 +342,7 @@ function doRegister(){
   localStorage.setItem(SESS_KEY, id);
   CUR=account; DB=loadAccountData(id);
   hideAuth(); bootApp();
-  cloudRegister(acc, account.pw, DB); // 云端登记（若已启用）
+  cloudRegister(account, pw, DB); // 云端登记（若已启用）
   if(!DB.settings.onboarded && !DB.profile.name){ showOnboard(); }
   toast('注册成功，欢迎！');
 }
@@ -360,6 +360,7 @@ function doLogin(){
   CUR=a; DB=loadAccountData(a.id);
   hideAuth(); bootApp();
   cloudBootSync(); // 拉取云端最新
+  if(CB.on){ sbSignIn(acc, pw, true).then(u=>{ if(u) cloudBootSync(); }); } // 静默建立云端会话
   toast('欢迎回来，'+(DB.profile.name||acc));
 }
 function guestLogin(){
@@ -373,92 +374,178 @@ function doLogout(){
   uiConfirm('退出当前账号？数据保留在本设备，可随时重新登录。',()=>{ localStorage.removeItem(SESS_KEY); location.reload(); });
 }
 
-/* ---------- 云端同步（腾讯云 CloudBase · 可选后端） ----------
-   原理：cloud-config.js 配置环境 ID → 动态加载 js-sdk → 匿名登录（设备身份）
-   → 所有账号读写均通过云函数 drbuddyCloud 完成（数据库对客户端关闭，仅云函数可访问）
+/* ---------- 云端同步（双后端：腾讯云 CloudBase / Supabase，由 cloud-config.js 的 provider 决定） ----------
+   CloudBase 模式：匿名登录（设备身份）→ 所有读写经云函数 drbuddyCloud（需在控制台添加 Web 安全域名）
+   Supabase 模式：邮箱+密码 Auth（手机号映射为 <手机号>@drstudy.cn）→ 数据存 drbuddy_data 表（RLS 隔离）
    未配置 / 云端不可用时自动退回纯本地模式，不影响使用。 */
-const CB = {on:false, app:null, lastSync:''};
+const CB = {on:false, mode:'', sb:null, app:null, lastSync:''};
 function cloudConf(){ try{ return window.DRSTUDY_CLOUD||{}; }catch(e){ return {}; } }
 function cloudPill(msg, cls){
   const p = document.getElementById('cloudPill'); if(!p) return;
   p.textContent = msg; p.className = 'cloud-pill ' + (cls||'');
 }
-function cloudInit(){
-  const c = cloudConf();
-  if(!c.env){ cloudPill('☁ 本地模式'); return; }   // 未配置：纯本地模式
-  cloudPill('☁ 连接云端…','sync');
-  const s = document.createElement('script');
-  const CDNS = ['https://cdn.jsdelivr.net/npm/@cloudbase/js-sdk@2/dist/cloudbase.full.js',
-                'https://unpkg.com/@cloudbase/js-sdk@2/dist/cloudbase.full.js'];
-  let ci = 0;
-  s.src = CDNS[0];
-  s.onload = async () => {
-    try{
-      CB.app = cloudbase.init({env:c.env});
-      const auth = CB.app.auth({persistence:'local'});
-      if(!auth.hasLoginState()) await auth.signInAnonymously();
-      CB.on = true;
-      cloudPill('☁ 云端已连接','ok');
-      cloudBootSync();
-    }catch(e){ console.warn('CloudBase init fail', e); cloudPill('☁ 云端未连接','err'); }
-  };
-  s.onerror = () => {
-    ci++;
-    if(ci < CDNS.length){ s.src = CDNS[ci]; }
-    else { cloudPill('☁ 云端未连接','err'); }
-  };
+function loadScript(srcs, ok, fail){
+  const s = document.createElement('script'); let i = 0;
+  s.src = srcs[0];
+  s.onload = ok;
+  s.onerror = () => { i++; if(i < srcs.length){ s.src = srcs[i]; } else fail(); };
   document.head.appendChild(s);
 }
-function cloudCall(data){
-  if(!CB.on) return Promise.resolve(null);
+function cloudInit(){
+  const c = cloudConf();
+  if(c.provider==='supabase' && c.url && c.key){
+    /* ===== Supabase 模式 ===== */
+    cloudPill('☁ 连接云端…','sync');
+    loadScript(['https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js',
+                'https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js'],
+      async () => {
+        try{
+          CB.sb = window.supabase.createClient(c.url, c.key, {auth:{persistSession:true, autoRefreshToken:true, detectSessionInUrl:false}});
+          CB.on = true; CB.mode = 'supabase';
+          cloudPill('☁ 云端已连接','ok');
+          cloudBootSync();
+        }catch(e){ console.warn('Supabase init fail', e); cloudPill('☁ 云端未连接','err'); }
+      },
+      () => cloudPill('☁ 云端未连接','err'));
+    return;
+  }
+  if(c.env){
+    /* ===== 腾讯云 CloudBase 模式 ===== */
+    cloudPill('☁ 连接云端…','sync');
+    loadScript(['https://static.cloudbase.net/cloudbase-js-sdk/latest/cloudbase.full.js',
+                'https://static.cloudbase.net/cloudbase-js-sdk/2.17.3/cloudbase.full.js'],
+      async () => {
+        try{
+          CB.app = cloudbase.init({env:c.env});
+          const auth = CB.app.auth({persistence:'local'});
+          if(!auth.hasLoginState()) await auth.signInAnonymously();
+          CB.on = true; CB.mode = 'cloudbase';
+          cloudPill('☁ 云端已连接','ok');
+          cloudBootSync();
+        }catch(e){ console.warn('CloudBase init fail', e); cloudPill('☁ 云端未连接','err'); }
+      },
+      () => cloudPill('☁ 云端未连接','err'));
+    return;
+  }
+  cloudPill('☁ 本地模式');   // 未配置：纯本地模式
+}
+/* 当前 Supabase 登录用户（未登录返回 null） */
+async function sbUser(){
+  if(!CB.on || CB.mode!=='supabase') return null;
+  try{ const {data} = await CB.sb.auth.getUser(); return data && data.user; }catch(e){ return null; }
+}
+/* CloudBase 云函数调用 */
+function cbCall(data){
+  if(!CB.on || CB.mode!=='cloudbase') return Promise.resolve(null);
   return CB.app.callFunction({name: cloudConf().func||'drbuddyCloud', data})
-    .then(r => r && r.result).catch(e => { cloudPill('☁ 云端不可用','err'); return null; });
+    .then(r => r && r.result).catch(e => { console.warn('cbCall fail', e); cloudPill('☁ 云端不可用','err'); return null; });
+}
+/* 手机号 → 伪邮箱（仅 Supabase 用；控制台需关闭"确认邮件"） */
+function sbEmail(acc){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(acc) ? acc : (acc||'').replace(/\D/g,'')+'@drstudy.cn'; }
+/* Supabase 登录（quiet=true 静默刷新会话，不弹提示） */
+async function sbSignIn(acc, pw, quiet){
+  if(!CB.on || CB.mode!=='supabase') return null;
+  try{
+    const {data, error} = await CB.sb.auth.signInWithPassword({email:sbEmail(acc), password:pw});
+    if(error){
+      if(!quiet) toast(/Invalid login/i.test(error.message||'') ? '账号或密码错误' : ('云端登录失败：'+error.message));
+      return null;
+    }
+    return data && data.user;
+  }catch(e){ return null; }
 }
 /* 保存后防抖推送云端 */
 let _cpTimer = null;
 function cloudPush(){
   if(!CB.on || !CUR || CUR.id==='guest') return;
-  cloudPill('☁ 同步中…','sync');
   clearTimeout(_cpTimer);
   _cpTimer = setTimeout(async () => {
-    const r = await cloudCall({action:'save', account:CUR.account, pw:CUR.pw||'', data:DB});
-    if(r && r.ok){ CB.lastSync = new Date().toTimeString().slice(0,5); cloudPill('☁ 已同步 '+CB.lastSync,'ok'); }
-    else if(r && r.err){ cloudPill('☁ 同步失败','err'); }
+    if(CB.mode==='supabase'){
+      const u = await sbUser();
+      if(!u) return;  // 云端未登录：只存本地
+      cloudPill('☁ 同步中…','sync');
+      const {error} = await CB.sb.from('drbuddy_data').upsert({user_id:u.id, data:DB, updated_at:new Date().toISOString()});
+      if(error){ console.warn('cloudPush fail', error); cloudPill('☁ 同步失败','err'); }
+      else{ CB.lastSync = new Date().toTimeString().slice(0,5); cloudPill('☁ 已同步 '+CB.lastSync,'ok'); }
+    }else{
+      cloudPill('☁ 同步中…','sync');
+      const r = await cbCall({action:'save', account:CUR.account, pw:CUR.pw||'', data:DB});
+      if(r && r.ok){ CB.lastSync = new Date().toTimeString().slice(0,5); cloudPill('☁ 已同步 '+CB.lastSync,'ok'); }
+      else if(r && r.err){ cloudPill('☁ 同步失败','err'); }
+    }
   }, 1500);
 }
 /* 启动/登录后拉取云端最新数据（云端较新才覆盖本地） */
 async function cloudBootSync(){
-  if(!CB.on || !CUR || CUR.id==='guest' || !CUR.account || !CUR.pw) return;
-  const r = await cloudCall({action:'load', account:CUR.account, pw:CUR.pw});
-  if(!r || !r.ok) return;
-  const cloudAt = r.updatedAt||'';
-  const localAt = (DB.settings&&DB.settings.updatedAt)||'';
-  if(cloudAt > localAt && r.data){
-    localStorage.setItem(dataKey(CUR.id), JSON.stringify(r.data));
-    DB = loadAccountData(CUR.id);
-    save();
-    if(APP_READY){ go(CUR_PAGE); toast('已从云端同步最新数据'); }
+  if(!CB.on || !CUR || CUR.id==='guest') return;
+  if(CB.mode==='supabase'){
+    const u = await sbUser(); if(!u) return;
+    const {data, error} = await CB.sb.from('drbuddy_data').select('data,updated_at').eq('user_id',u.id).maybeSingle();
+    if(error || !data || !data.data) return;
+    const ct = Date.parse(data.updated_at||''), lt = Date.parse((DB.settings&&DB.settings.updatedAt)||'');
+    if(!isNaN(ct) && (isNaN(lt) || ct > lt)){
+      localStorage.setItem(dataKey(CUR.id), JSON.stringify(data.data));
+      DB = loadAccountData(CUR.id); save();
+      if(APP_READY){ go(CUR_PAGE); toast('已从云端同步最新数据'); }
+    }
+  }else{
+    if(!CUR.account || !CUR.pw) return;
+    const r = await cbCall({action:'load', account:CUR.account, pw:CUR.pw});
+    if(!r || !r.ok) return;
+    const cloudAt = r.updatedAt||'';
+    const localAt = (DB.settings&&DB.settings.updatedAt)||'';
+    if(cloudAt > localAt && r.data){
+      localStorage.setItem(dataKey(CUR.id), JSON.stringify(r.data));
+      DB = loadAccountData(CUR.id); save();
+      if(APP_READY){ go(CUR_PAGE); toast('已从云端同步最新数据'); }
+    }
   }
 }
 /* 跨设备登录：本地无此账号时到云端验证并拉取 */
 async function cloudLogin(acc, pw){
-  const r = await cloudCall({action:'login', account:acc, pw:pwHash(pw+'·drbuddy')});
-  if(!r){ toast('云端暂时无法连接，请稍后再试'); return; }
-  if(r.err==='noaccount'){ toast('账号不存在，请先注册'); return; }
-  if(r.err==='wrongpw'){ toast('密码错误'); return; }
-  const account = {id:uid(), account:acc, pw:pwHash(pw+'·drbuddy')};
-  const accs = getAccounts(); accs.push(account); setAccounts(accs);
-  localStorage.setItem(dataKey(account.id), JSON.stringify(r.data||defaultData()));
-  localStorage.setItem(SESS_KEY, account.id);
-  CUR=account; DB=loadAccountData(account.id);
-  hideAuth(); bootApp();
-  toast('欢迎回来，'+(DB.profile.name||acc));
+  if(CB.mode==='supabase'){
+    toast('正在从云端登录…');
+    const u = await sbSignIn(acc, pw);
+    if(!u) return;
+    const {data:row} = await CB.sb.from('drbuddy_data').select('data,updated_at').eq('user_id',u.id).maybeSingle();
+    const account = {id:uid(), account:acc, pw:pwHash(pw+'·drbuddy')};
+    const accs = getAccounts(); accs.push(account); setAccounts(accs);
+    localStorage.setItem(dataKey(account.id), JSON.stringify((row&&row.data)||defaultData()));
+    localStorage.setItem(SESS_KEY, account.id);
+    CUR=account; DB=loadAccountData(account.id);
+    hideAuth(); bootApp();
+    if(!DB.settings.onboarded && !DB.profile.name){ showOnboard(); }
+    toast('欢迎回来，'+(DB.profile.name||acc));
+  }else{
+    const r = await cbCall({action:'login', account:acc, pw:pwHash(pw+'·drbuddy')});
+    if(!r){ toast('云端暂时无法连接，请稍后再试'); return; }
+    if(r.err==='noaccount'){ toast('账号不存在，请先注册'); return; }
+    if(r.err==='wrongpw'){ toast('密码错误'); return; }
+    const account = {id:uid(), account:acc, pw:pwHash(pw+'·drbuddy')};
+    const accs = getAccounts(); accs.push(account); setAccounts(accs);
+    localStorage.setItem(dataKey(account.id), JSON.stringify(r.data||defaultData()));
+    localStorage.setItem(SESS_KEY, account.id);
+    CUR=account; DB=loadAccountData(account.id);
+    hideAuth(); bootApp();
+    toast('欢迎回来，'+(DB.profile.name||acc));
+  }
 }
 /* 注册后把账号登记到云端 */
-async function cloudRegister(account, pwH, data){
+async function cloudRegister(account, pwPlain, data){
   if(!CB.on) return;
-  const r = await cloudCall({action:'register', account, pw:pwH, data});
-  if(r && r.err==='exists'){ toast('提示：该账号已在其他设备注册过，本设备将无法云同步它'); }
+  if(CB.mode==='supabase'){
+    try{
+      const {data:r, error} = await CB.sb.auth.signUp({email:sbEmail(account.account), password:pwPlain});
+      if(error){ toast('云端注册失败：'+error.message); return; }
+      if(r && r.user){
+        await CB.sb.from('drbuddy_data').upsert({user_id:r.user.id, data, updated_at:new Date().toISOString()});
+        cloudPill('☁ 已同步','ok');
+      }
+    }catch(e){ console.warn('cloudRegister fail', e); }
+  }else{
+    const r = await cbCall({action:'register', account:account.account, pw:account.pw, data});
+    if(r && r.err==='exists'){ toast('提示：该账号已在其他设备注册过，本设备将无法云同步它'); }
+  }
 }
 
 function load(){
@@ -1165,7 +1252,7 @@ pages.settings = function(){
         <div class="dm-btn" onclick="loadDemo()"><span class="ic">🎯</span><span class="lb">载入示例数据</span><span class="ds">体验完整功能</span></div>
         <div class="dm-btn" onclick="dataReset()" style="border-color:var(--danger);"><span class="ic">🗑</span><span class="lb" style="color:var(--danger);">清空所有数据</span><span class="ds">不可恢复</span></div>
       </div>
-      <div class="tips">数据默认存储在浏览器本地。若站点已接入云端（侧边栏显示"☁ 云端已连接"），账号数据会自动同步到云端，换设备登录同一账号即可继续使用，云端数据保存在腾讯云开发（CloudBase）。建议定期导出 JSON 备份。</div>
+      <div class="tips">数据默认存储在浏览器本地。若站点已接入云端（侧边栏显示"☁ 云端已连接"），账号数据会自动同步到云端，换设备登录同一账号即可继续使用。建议定期导出 JSON 备份。</div>
     </div>
     <div class="card">
       <h3>☁ 云端同步</h3>
@@ -1179,8 +1266,8 @@ pages.settings = function(){
   const ci = document.getElementById('cloudInfo');
   if(ci){
     ci.textContent = CB.on
-      ? ('已连接云端（腾讯云开发 CloudBase · 环境 '+(cloudConf().env||'')+'）。账号数据自动双向同步：本机修改后约 2 秒上传，登录时自动拉取云端最新版。'+(CB.lastSync?('上次同步：'+CB.lastSync):''))
-      : '当前为本地模式（数据仅保存在本设备浏览器）。站点管理员在部署目录的 cloud-config.js 中填入腾讯云 CloudBase 环境 ID 后，即可自动启用云端同步。';
+      ? ('已连接云端（'+(CB.mode==='supabase'?'Supabase':'腾讯云 CloudBase')+'）。账号数据自动双向同步：本机修改后约 2 秒上传，登录时自动拉取云端最新版，换设备登录同一账号数据不丢。'+(CB.lastSync?('上次同步：'+CB.lastSync):''))
+      : '当前为本地模式（数据仅保存在本设备浏览器）。站点管理员在部署目录的 cloud-config.js 中配置云端（CloudBase 环境 ID 或 Supabase URL/key）后，即可自动启用云端同步。';
   }
 };
 function saveProfile(){ DB.profile={degree:val('pf_degree'),name:val('pf_name').trim(),school:val('pf_school').trim(),major:val('pf_major').trim(),advisor:val('pf_advisor').trim(),enrollYear:val('pf_ey').trim(),targetYear:val('pf_ty').trim()}; save(); toast('已保存'); }
@@ -1327,7 +1414,7 @@ function renderAuth(tab){
       <div class="fg"><label>密码 *</label><input id="au_pw" type="password" placeholder="至少 6 位" autocomplete="${isReg?'new-password':'current-password'}"></div>
       ${isReg?`<div class="fg"><label>确认密码 *</label><input id="au_pw2" type="password" placeholder="再输入一次密码"></div>`:''}
     </div>
-    ${isReg?`<div class="tips" style="margin-top:4px;">🔒 无需实名认证。账号仅用于在本设备区分不同用户、保护你的数据；所有数据存储在浏览器本地，不会上传服务器。</div>`:''}
+    ${isReg?`<div class="tips" style="margin-top:4px;">🔒 无需实名认证。账号数据保存在你自己的浏览器中；站点接入云端后还会自动同步到云端数据库，仅你本人登录可访问。</div>`:''}
     <div class="ob-btns" style="margin-top:16px;">
       <span class="ob-skip" onclick="guestLogin()">先体验，不注册</span>
       <span class="spacer"></span>
