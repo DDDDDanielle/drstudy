@@ -224,6 +224,7 @@ tr:hover td{background:#242c46;}
       <div><div class="t1">DRSTUDY</div><div class="t2">研究生工作台</div></div>
     </div>
     <div id="cloudPill" class="cloud-pill">☁ 本地模式</div>
+    <div id="logoutPill" class="cloud-pill" style="display:none;color:#e5484d;border:1px dashed #e5484d88;cursor:pointer;" onclick="doLogout()" title="退出当前账号（数据保留在本设备）">⎋ 退出登录</div>
     <div class="nav-item active" data-page="dashboard"><span class="ico">◎</span><span class="tx">工作台</span></div>
     <div class="nav-sec">科研管理</div>
     <div class="nav-item" data-page="literature"><span class="ico">📚</span><span class="tx">文献管理</span><span class="badge" id="nav-lit">0</span></div>
@@ -1422,7 +1423,45 @@ function renderAuth(tab){
         ?`<span class="btn primary" onclick="doRegister()">注册并进入 →</span>`
         :`<span class="btn primary" onclick="doLogin()">登录 →</span>`}
     </div>
+    <div style="display:flex;align-items:center;gap:10px;margin:18px 0 12px;font-size:12px;opacity:.55;">
+      <div style="flex:1;height:1px;background:currentColor;opacity:.35;"></div>其他登录方式<div style="flex:1;height:1px;background:currentColor;opacity:.35;"></div>
+    </div>
+    <span class="btn" style="display:block;text-align:center;background:#07c160;color:#fff;border-color:#07c160;font-weight:600;" onclick="wxLogin()">微信登录</span>
   `;
+}
+/* 微信登录：需在微信开放平台申请"网站应用"并在 cloud-config.js 配置 wechat.appid */
+function wxLogin(){
+  const wx = (window.DRSTUDY_CLOUD && window.DRSTUDY_CLOUD.wechat) || {};
+  if(!wx.enabled || !wx.appid){
+    toast('微信登录暂未开通：需在微信开放平台申请网站应用后配置。可先用邮箱/手机号注册登录');
+    return;
+  }
+  const redirect = encodeURIComponent(location.origin + location.pathname);
+  location.href = 'https://open.weixin.qq.com/connect/qrconnect?appid='+wx.appid+'&redirect_uri='+redirect+'&response_type=code&scope=snsapi_login&state=drstudy#wechat_redirect';
+}
+/* 微信扫码回跳处理：用 code 换取账号并入座本地 */
+async function wxCallback(code){
+  toast('微信登录中…');
+  for(let i=0;i<20 && !CB.on;i++){ await new Promise(r=>setTimeout(r,300)); } // 等云端就绪（最多 6s）
+  let r = null;
+  try{ r = await cbCall({action:'wxlogin', code}); }catch(e){ console.warn('wxlogin fail', e); }
+  if(!r || !r.ok){
+    toast('微信登录失败：'+((r&&r.msg)||'云端无响应'));
+    if(!CUR){ showAuth(); }
+    return;
+  }
+  let a = getAccounts().find(x=>x.account===r.account);
+  if(!a){
+    a = {id:uid(), account:r.account, pw:r.token};
+    const accs = getAccounts(); accs.push(a); setAccounts(accs);
+    localStorage.setItem(dataKey(a.id), JSON.stringify(r.data||defaultData()));
+  }
+  localStorage.setItem(SESS_KEY, a.id);
+  CUR=a; DB=loadAccountData(a.id);
+  hideAuth(); bootApp();
+  cloudBootSync();
+  if(!DB.settings.onboarded && !DB.profile.name){ showOnboard(); }
+  toast('微信登录成功，欢迎！');
 }
 
 /* ============================================================
@@ -1554,12 +1593,16 @@ function bootApp(){
   updateBadges();
   go('dashboard');
   applyResp();
+  const lp = document.getElementById('logoutPill'); if(lp) lp.style.display = '';
   // 首次使用：显示引导向导
   if(!DB.settings.onboarded && !DB.profile.name){ showOnboard(); }
   // 老用户首次升级到新版：补标记
   if(!DB.settings.onboarded && DB.profile.name){ DB.settings.onboarded = true; save(); }
 }
 if(initSession()){ bootApp(); } else { showAuth(); }
+/* 微信扫码登录回调：URL 带 ?code= 时自动处理 */
+const __wxCode = (location.search.match(/[?&]code=([^&]+)/)||[])[1];
+if(__wxCode){ history.replaceState(null,'',location.pathname); wxCallback(__wxCode); }
 // 云端同步初始化（cloud-config.js 未配置环境 ID 时为纯本地模式）
 cloudInit();
 // PWA Service Worker 注册（本地文件打开时静默失败，不影响使用）

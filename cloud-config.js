@@ -14,5 +14,11 @@ window.DRSTUDY_CLOUD = {
 
   /* ---- Supabase（备用，把 provider 改成 'supabase' 并填好下面两项即切换） ---- */
   url: '',   // 形如 https://xxxx.supabase.co
-  key: ''    // anon public key（eyJ... 开头长字符串）
+  key: '',   // anon public key（eyJ... 开头长字符串）
+
+  /* ---- 微信登录（可选。需在微信开放平台 open.weixin.qq.com 申请"网站应用"，且仅支持企业主体） ---- */
+  wechat: {
+    enabled: false,   // 拿到网站应用 AppID 后改成 true 并填 appid，同时把 AppSecret 填进云函数代码顶部
+    appid: ''         // 微信开放平台 网站应用 AppID（wx 开头）
+  }
 };
