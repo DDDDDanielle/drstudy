@@ -883,7 +883,7 @@ function litModal(id){
     <div class="btn-row">
       ${id?`<span class="btn danger sm" onclick="litDel('${id}')">删除</span>`:''}
       <span class="btn" onclick="closeModal()">取消</span>
-      <span class="btn primary" onclick="litSave('${id}')">保存</span>
+      <span class="btn primary" onclick="litSave('${id||''}')">保存</span>
     </div>
   `);
 }
@@ -961,7 +961,7 @@ function chModal(id){
       <div class="fg"><label>截止日期</label><input id="cf_dl" type="date" value="${c.deadline||''}"></div>
       <div class="fg full"><label>备注</label><textarea id="cf_notes" rows="2">${esc(c.notes)}</textarea></div>
     </div>
-    <div class="btn-row">${id?`<span class="btn danger sm" onclick="chDel('${id}')">删除</span>`:''}<span class="btn" onclick="closeModal()">取消</span><span class="btn primary" onclick="chSave('${id}')">保存</span></div>
+    <div class="btn-row">${id?`<span class="btn danger sm" onclick="chDel('${id}')">删除</span>`:''}<span class="btn" onclick="closeModal()">取消</span><span class="btn primary" onclick="chSave('${id||''}')">保存</span></div>
   `);
 }
 function chSave(id){
@@ -982,7 +982,7 @@ function ppModal(id){
       <div class="fg"><label>投稿日期</label><input id="pf_date" type="date" value="${p.submittedDate||''}"></div>
       <div class="fg full"><label>备注</label><textarea id="pf_notes" rows="2">${esc(p.notes)}</textarea></div>
     </div>
-    <div class="btn-row">${id?`<span class="btn danger sm" onclick="ppDel('${id}')">删除</span>`:''}<span class="btn" onclick="closeModal()">取消</span><span class="btn primary" onclick="ppSave('${id}')">保存</span></div>
+    <div class="btn-row">${id?`<span class="btn danger sm" onclick="ppDel('${id}')">删除</span>`:''}<span class="btn" onclick="closeModal()">取消</span><span class="btn primary" onclick="ppSave('${id||''}')">保存</span></div>
   `);
 }
 function ppSave(id){
@@ -1030,7 +1030,7 @@ function msModal(id){
       <div class="fg full"><label>描述</label><textarea id="mf_desc" rows="2">${esc(m.description)}</textarea></div>
       <div class="fg full"><label>准备事项（每行一条）</label><textarea id="mf_tasks" rows="3" placeholder="每行一条">${esc((m.tasks||[]).join('\n'))}</textarea></div>
     </div>
-    <div class="btn-row">${id?`<span class="btn danger sm" onclick="msDel('${id}')">删除</span>`:''}<span class="btn" onclick="closeModal()">取消</span><span class="btn primary" onclick="msSave('${id}')">保存</span></div>
+    <div class="btn-row">${id?`<span class="btn danger sm" onclick="msDel('${id}')">删除</span>`:''}<span class="btn" onclick="closeModal()">取消</span><span class="btn primary" onclick="msSave('${id||''}')">保存</span></div>
   `);
 }
 function msSave(id){
@@ -1077,7 +1077,7 @@ function rsModal(id){
       <div class="fg full"><label>工具/方法（逗号分隔）</label><input id="rf_tools" value="${esc((r.tools||[]).join(', '))}" placeholder="EnergyPlus, Python, XGBoost"></div>
       <div class="fg full"><label>备注</label><textarea id="rf_notes" rows="3">${esc(r.notes)}</textarea></div>
     </div>
-    <div class="btn-row">${id?`<span class="btn danger sm" onclick="rsDel('${id}')">删除</span>`:''}<span class="btn" onclick="closeModal()">取消</span><span class="btn primary" onclick="rsSave('${id}')">保存</span></div>
+    <div class="btn-row">${id?`<span class="btn danger sm" onclick="rsDel('${id}')">删除</span>`:''}<span class="btn" onclick="closeModal()">取消</span><span class="btn primary" onclick="rsSave('${id||''}')">保存</span></div>
   `);
 }
 function rsSave(id){
@@ -1137,7 +1137,7 @@ function rpModal(id){
       <div class="fg full"><label>导师反馈</label><textarea id="rf_feedback" rows="3">${esc(r.feedback)}</textarea></div>
       <div class="fg full"><label>待确认/行动项（每行一条）</label><textarea id="rf_ai" rows="3">${esc((r.actionItems||[]).join('\n'))}</textarea></div>
     </div>
-    <div class="btn-row">${id?`<span class="btn danger sm" onclick="rpDel('${id}')">删除</span>`:''}<span class="btn" onclick="closeModal()">取消</span><span class="btn primary" onclick="rpSave('${id}')">保存</span></div>
+    <div class="btn-row">${id?`<span class="btn danger sm" onclick="rpDel('${id}')">删除</span>`:''}<span class="btn" onclick="closeModal()">取消</span><span class="btn primary" onclick="rpSave('${id||''}')">保存</span></div>
   `);
 }
 function rpSave(id){
@@ -1178,7 +1178,7 @@ function acModal(id){
       <div class="fg"><label>角色</label><input id="af_role" value="${esc(a.role)}" placeholder="如 口头报告/海报/参会"></div>
       <div class="fg full"><label>备注</label><textarea id="af_notes" rows="2">${esc(a.notes)}</textarea></div>
     </div>
-    <div class="btn-row">${id?`<span class="btn danger sm" onclick="acDel('${id}')">删除</span>`:''}<span class="btn" onclick="closeModal()">取消</span><span class="btn primary" onclick="acSave('${id}')">保存</span></div>
+    <div class="btn-row">${id?`<span class="btn danger sm" onclick="acDel('${id}')">删除</span>`:''}<span class="btn" onclick="closeModal()">取消</span><span class="btn primary" onclick="acSave('${id||''}')">保存</span></div>
   `);
 }
 function acSave(id){
@@ -1233,7 +1233,7 @@ function tdModal(id){
       <div class="fg"><label>优先级</label><select id="tf_pri">${['紧急','高','中','低'].map(s=>`<option ${t.priority===s?'selected':''}>${s}</option>`).join('')}</select></div>
       <div class="fg"><label>截止日期</label><input id="tf_due" type="date" value="${t.due||''}"></div>
     </div>
-    <div class="btn-row">${id?`<span class="btn danger sm" onclick="tdDel('${id}')">删除</span>`:''}<span class="btn" onclick="closeModal()">取消</span><span class="btn primary" onclick="tdSave('${id}')">保存</span></div>
+    <div class="btn-row">${id?`<span class="btn danger sm" onclick="tdDel('${id}')">删除</span>`:''}<span class="btn" onclick="closeModal()">取消</span><span class="btn primary" onclick="tdSave('${id||''}')">保存</span></div>
   `);
 }
 function tdSave(id){
@@ -1324,7 +1324,7 @@ function cvpModal(type,id){
     <div class="fg"><label>机构/会议</label><input id="vf_org" value="${esc(item.org)}"></div>
     <div class="fg"><label>年份</label><input id="vf_year" value="${esc(item.year)}"></div>
   </div>`; }
-  openModal(`<h3>${id?'编辑':'添加'} <span class="close" onclick="closeModal()">✕</span></h3>${form}<div class="btn-row">${id?`<span class="btn danger sm" onclick="cvDel('${type}','${id}')">删除</span>`:''}<span class="btn" onclick="closeModal()">取消</span><span class="btn primary" onclick="cvSave('${type}','${id}')">保存</span></div>`);
+  openModal(`<h3>${id?'编辑':'添加'} <span class="close" onclick="closeModal()">✕</span></h3>${form}<div class="btn-row">${id?`<span class="btn danger sm" onclick="cvDel('${type}','${id}')">删除</span>`:''}<span class="btn" onclick="closeModal()">取消</span><span class="btn primary" onclick="cvSave('${type}','${id||''}')">保存</span></div>`);
 }
 function cvSave(type,id){
   const arr = type==='paper'?DB.cv.papers:type==='award'?DB.cv.awards:type==='skill'?DB.cv.skills:DB.cv.services;
