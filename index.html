@@ -351,7 +351,7 @@ tr:hover td{background:#242c46;}
 <div class="modal-mask" id="modalMask"><div class="modal" id="modalBox"></div></div>
 <div class="modal-mask" id="cfMask" style="z-index:150;"><div class="modal" style="max-width:400px;margin-top:20vh;">
   <h3 style="margin-bottom:8px;">请确认 <span class="close" onclick="cfNo()">✕</span></h3>
-  <p id="cfMsg" style="color:var(--muted);font-size:14px;line-height:1.7;margin:6px 0 18px;"></p>
+  <p id="cfMsg" style="color:var(--muted);font-size:14px;line-height:1.7;margin:6px 0 18px;white-space:pre-wrap;"></p>
   <div style="display:flex;gap:10px;justify-content:flex-end;">
     <span class="btn" onclick="cfNo()">取消</span>
     <span class="btn primary" onclick="cfYes()">确认</span>
@@ -386,12 +386,39 @@ tr:hover td{background:#242c46;}
 const STORE_KEY = 'drbuddy_v1';            // 旧版单用户数据（迁移用）
 const ACC_KEY  = 'drbuddy_accounts';       // 账号列表
 const SESS_KEY = 'drbuddy_session';        // 当前登录账号
+const ANA_KEY  = 'drbuddy_analytics';      // 行为埋点数据（待上传）
+const MAX_ANA  = 500;                       // 本地最多暂存 500 条埋点
 const dataKey  = id => 'drbuddy_data_' + id;
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
 const today = () => new Date().toISOString().slice(0,10);
 const now = () => new Date().toISOString();
 const daysUntil = (d) => { if(!d) return null; const diff = Math.ceil((new Date(d)-new Date(today()))/86400000); return diff; };
 const esc = (s) => { const d=document.createElement('div'); d.textContent=s==null?'':String(s); return d.innerHTML; };
+
+/* ---------- 行为埋点（轻量采集，云端同步时附带上传） ---------- */
+function track(event, data){
+  try{
+    const arr = JSON.parse(localStorage.getItem(ANA_KEY)||'[]');
+    arr.push({
+      t: Date.now(),
+      e: event,
+      d: data ? (typeof data==='string' ? data : JSON.stringify(data)) : null,
+      v: DB ? DB._ver : null,
+      a: CUR ? CUR.id : null
+    });
+    while(arr.length > MAX_ANA) arr.shift();
+    localStorage.setItem(ANA_KEY, JSON.stringify(arr));
+  }catch(e){}
+}
+/* 取出并清空埋点（cloudPush 调用后清空本地暂存） */
+function drainAnalytics(){
+  try{
+    const arr = JSON.parse(localStorage.getItem(ANA_KEY)||'[]');
+    if(!arr.length) return null;
+    localStorage.setItem(ANA_KEY, '[]');
+    return arr;
+  }catch(e){ return null; }
+}
 
 /* ---------- 默认数据 ---------- */
 function defaultData(){
@@ -405,7 +432,7 @@ function defaultData(){
     academic:[],
     todos:[],
     cv:{papers:[],awards:[],skills:[],services:[]},
-    settings:{onboarded:false},
+    settings:{onboarded:false, premium:false, premiumUntil:''},
     social:{friends:[],pending:[],sent:[],lastFetch:0,unreadCount:0}
   };
 }
@@ -415,7 +442,27 @@ let CUR = null; // 当前账号 {id, account}
 /* ---------- 账号体系（本地多账号，无需实名） ---------- */
 function getAccounts(){ try{ return JSON.parse(localStorage.getItem(ACC_KEY))||[]; }catch(e){ return []; } }
 function setAccounts(a){ localStorage.setItem(ACC_KEY, JSON.stringify(a)); }
-function pwHash(s){ let h=5381,h2=52711; for(let i=0;i<s.length;i++){ h=((h<<5)+h+s.charCodeAt(i))|0; h2=((h2<<5)+h2+s.charCodeAt(i))|0; } return (h>>>0).toString(36)+'.'+(h2>>>0).toString(36); }
+/* ---- 密码安全体系：SHA-256 + 随机盐（Web Crypto API），兼容旧版 DJB2 ---- */
+function pwHashLegacy(s){ let h=5381,h2=52711; for(let i=0;i<s.length;i++){ h=((h<<5)+h+s.charCodeAt(i))|0; h2=((h2<<5)+h2+s.charCodeAt(i))|0; } return (h>>>0).toString(36)+'.'+(h2>>>0).toString(36); }
+function genSalt(){ const a=new Uint8Array(16); crypto.getRandomValues(a); return Array.from(a).map(b=>b.toString(16).padStart(2,'0')).join(''); }
+async function secureHash(password, salt){
+  const enc=new TextEncoder().encode('drstudy:'+password+':'+salt);
+  const buf=await crypto.subtle.digest('SHA-256', enc);
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+async function hashPw(password){ const salt=genSalt(); const h=await secureHash(password, salt); return 'sha256:'+salt+':'+h; }
+async function verifyPw(password, stored){
+  if(!stored) return false;
+  if(stored.startsWith('sha256:')){ const p=stored.split(':'); if(p.length<3) return false; return (await secureHash(password, p[1]))===p[2]; }
+  return stored===pwHashLegacy(password+'·drbuddy'); // 旧版 DJB2 兼容
+}
+function isLegacyPw(stored){ return stored && !stored.startsWith('sha256:'); }
+/* 确定性哈希（云端通信用——服务端应在此基础上 bcrypt 加盐存储） */
+async function cloudHash(password){
+  const enc=new TextEncoder().encode('drstudy-cloud:'+password);
+  const buf=await crypto.subtle.digest('SHA-256', enc);
+  return 'c$'+Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
 function loadAccountData(id){
   try{
     const r = localStorage.getItem(dataKey(id));
@@ -439,7 +486,7 @@ function initSession(){
   if(acc){ CUR=acc; DB=loadAccountData(acc.id); return true; }
   return false;
 }
-function doRegister(){
+async function doRegister(){
   const acc = val('au_acc').trim();
   const pw = val('au_pw'), pw2 = val('au_pw2');
   const isPhone = /^1[3-9]\d{9}$/.test(acc);
@@ -450,38 +497,45 @@ function doRegister(){
   const accs = getAccounts();
   if(accs.find(a=>a.account===acc)){ toast('该账号已注册，请直接登录'); renderAuth('login'); return; }
   const id = uid();
-  // 首个注册账号迁移旧版数据（若旧版有内容）
   let data = defaultData();
   if(!accs.length && !localStorage.getItem(dataKey('guest'))){
     try{ const legacy = JSON.parse(localStorage.getItem(STORE_KEY)||'null');
       if(legacy && ((legacy.literature||[]).length || (legacy.profile||{}).name)) data = legacy;
     }catch(e){}
   }
-  const account = {id, account:acc, pw:pwHash(pw+'·drbuddy')};
+  const hashedPw = await hashPw(pw);
+  const cw = await cloudHash(pw);
+  const account = {id, account:acc, pw:hashedPw, cw};
   accs.push(account); setAccounts(accs);
   localStorage.setItem(dataKey(id), JSON.stringify(data));
   localStorage.setItem(SESS_KEY, id);
   CUR=account; DB=loadAccountData(id);
   hideAuth(); bootApp();
-  cloudRegister(account, pw, DB); // 云端登记（若已启用）
+  cloudRegister(account, pw, DB);
   if(!DB.settings.onboarded && !DB.profile.name){ showOnboard(); }
+  track('register', {account:acc});
   toast('注册成功，欢迎！');
 }
-function doLogin(){
+async function doLogin(){
   const acc = val('au_acc').trim(), pw = val('au_pw');
   const a = getAccounts().find(x=>x.account===acc);
   if(!a){
-    // 本机没有此账号：尝试云端登录（跨设备）
     if(CB.on){ toast('正在从云端登录…'); cloudLogin(acc, pw); }
     else { toast('账号不存在，请先注册'); }
     return;
   }
-  if(a.pw!==pwHash(pw+'·drbuddy')){ toast('密码错误'); return; }
+  const ok = await verifyPw(pw, a.pw);
+  if(!ok){ toast('密码错误'); return; }
+  // 旧版哈希自动迁移为新版安全哈希
+  if(isLegacyPw(a.pw)){ a.pw = await hashPw(pw); a.cw = await cloudHash(pw); setAccounts(getAccounts()); }
+  // 确保已迁移的账号也有 cw 字段
+  if(!a.cw){ a.cw = await cloudHash(pw); setAccounts(getAccounts()); }
   localStorage.setItem(SESS_KEY, a.id);
   CUR=a; DB=loadAccountData(a.id);
   hideAuth(); bootApp();
-  cloudBootSync(); // 拉取云端最新
-  if(CB.on){ sbSignIn(acc, pw, true).then(u=>{ if(u) cloudBootSync(); }); } // 静默建立云端会话
+  cloudBootSync();
+  if(CB.on){ sbSignIn(acc, pw, true).then(u=>{ if(u) cloudBootSync(); }); }
+  track('login', {account:acc});
   toast('欢迎回来，'+(DB.profile.name||acc));
 }
 function guestLogin(){
@@ -490,6 +544,7 @@ function guestLogin(){
   CUR={id:'guest',account:'访客体验'}; DB=loadAccountData('guest');
   hideAuth(); bootApp();
   if(!DB.settings.onboarded && !DB.profile.name){ showOnboard(); }
+  track('guest_login');
 }
 function doLogout(){
   uiConfirm('退出当前账号？数据保留在本设备，可随时重新登录。',()=>{ stopUnreadPoll(); stopChatPoll(); localStorage.removeItem(SESS_KEY); location.reload(); });
@@ -581,6 +636,7 @@ function cloudPush(){
   if(!CB.on || !CUR || CUR.id==='guest') return;
   clearTimeout(_cpTimer);
   _cpTimer = setTimeout(async () => {
+    const ana = drainAnalytics();
     if(CB.mode==='supabase'){
       const u = await sbUser();
       if(!u) return;  // 云端未登录：只存本地
@@ -588,9 +644,11 @@ function cloudPush(){
       const {error} = await CB.sb.from('drbuddy_data').upsert({user_id:u.id, data:DB, updated_at:new Date().toISOString()});
       if(error){ console.warn('cloudPush fail', error); cloudPill('☁ 同步失败','err'); }
       else{ CB.lastSync = new Date().toTimeString().slice(0,5); cloudPill('☁ 已同步 '+CB.lastSync,'ok'); }
+      // 埋点数据写入 analytics 表（非关键，失败不报错）
+      if(ana) CB.sb.from('drbuddy_analytics').insert(ana.map(e=>({user_id:u.id, event:e.e, data:e.d, created_at:new Date(e.t).toISOString()}))).then(()=>{}, ()=>{});
     }else{
       cloudPill('☁ 同步中…','sync');
-      const r = await cbCall({action:'save', account:CUR.account, pw:CUR.pw||'', data:DB});
+      const r = await cbCall({action:'save', account:CUR.account, pw:CUR.cw||CUR.pw||'', data:DB, analytics:ana});
       if(r && r.ok){ CB.lastSync = new Date().toTimeString().slice(0,5); cloudPill('☁ 已同步 '+CB.lastSync,'ok'); }
       else if(r && r.err){ cloudPill('☁ 同步失败','err'); }
     }
@@ -610,8 +668,8 @@ async function cloudBootSync(){
       if(APP_READY){ go(CUR_PAGE); toast('已从云端同步最新数据'); }
     }
   }else{
-    if(!CUR.account || !CUR.pw) return;
-    const r = await cbCall({action:'load', account:CUR.account, pw:CUR.pw});
+    if(!CUR.account || !(CUR.cw||CUR.pw)) return;
+    const r = await cbCall({action:'load', account:CUR.account, pw:CUR.cw||CUR.pw});
     if(!r || !r.ok) return;
     const cloudAt = r.updatedAt||'';
     const localAt = (DB.settings&&DB.settings.updatedAt)||'';
@@ -629,7 +687,7 @@ async function cloudLogin(acc, pw){
     const u = await sbSignIn(acc, pw);
     if(!u) return;
     const {data:row} = await CB.sb.from('drbuddy_data').select('data,updated_at').eq('user_id',u.id).maybeSingle();
-    const account = {id:uid(), account:acc, pw:pwHash(pw+'·drbuddy')};
+    const account = {id:uid(), account:acc, pw:await hashPw(pw), cw:await cloudHash(pw)};
     const accs = getAccounts(); accs.push(account); setAccounts(accs);
     localStorage.setItem(dataKey(account.id), JSON.stringify((row&&row.data)||defaultData()));
     localStorage.setItem(SESS_KEY, account.id);
@@ -638,11 +696,12 @@ async function cloudLogin(acc, pw){
     if(!DB.settings.onboarded && !DB.profile.name){ showOnboard(); }
     toast('欢迎回来，'+(DB.profile.name||acc));
   }else{
-    const r = await cbCall({action:'login', account:acc, pw:pwHash(pw+'·drbuddy')});
+    const hashedPw = await hashPw(pw);
+    const r = await cbCall({action:'login', account:acc, pw:await cloudHash(pw)});
     if(!r){ toast('云端暂时无法连接，请稍后再试'); return; }
     if(r.err==='noaccount'){ toast('账号不存在，请先注册'); return; }
     if(r.err==='wrongpw'){ toast('密码错误'); return; }
-    const account = {id:uid(), account:acc, pw:pwHash(pw+'·drbuddy')};
+    const account = {id:uid(), account:acc, pw:hashedPw, cw:await cloudHash(pw)};
     const accs = getAccounts(); accs.push(account); setAccounts(accs);
     localStorage.setItem(dataKey(account.id), JSON.stringify(r.data||defaultData()));
     localStorage.setItem(SESS_KEY, account.id);
@@ -664,7 +723,7 @@ async function cloudRegister(account, pwPlain, data){
       }
     }catch(e){ console.warn('cloudRegister fail', e); }
   }else{
-    const r = await cbCall({action:'register', account:account.account, pw:account.pw, data});
+    const r = await cbCall({action:'register', account:account.account, pw:account.cw||account.pw, data});
     if(r && r.err==='exists'){ toast('提示：该账号已在其他设备注册过，本设备将无法云同步它'); }
   }
 }
@@ -692,8 +751,10 @@ document.querySelectorAll('.nav-item').forEach(el=>{
   el.addEventListener('click',()=>go(el.dataset.page));
 });
 let CUR_PAGE = 'dashboard';
+let CUR_PAGE_PREV = null;
 function go(page){
   CUR_PAGE = page;
+  if(page !== CUR_PAGE_PREV){ track('view', {tab:page}); CUR_PAGE_PREV = page; }
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active',n.dataset.page===page));
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   let pg = document.getElementById('pg-'+page);
@@ -828,11 +889,8 @@ pages.dashboard = function(){
    ============================================================ */
 pages.literature = function(){
   let filter = pages.literature._f || 'all';
-  let search = pages.literature._s || '';
   const all = DB.literature;
-  let list = all;
-  if(filter!=='all') list = list.filter(l=>l.status===filter);
-  if(search) list = list.filter(l=>(l.title+l.authors+l.tags.join('')+l.venue).toLowerCase().includes(search.toLowerCase()));
+  let list = litFiltered();
 
   document.getElementById('pg-literature').innerHTML = `
     <h2>📚 文献管理 <span class="sub">共 ${all.length} 篇 · 已读 ${all.filter(l=>l.status==='已读'||l.status==='已整理').length}</span></h2>
@@ -840,6 +898,8 @@ pages.literature = function(){
       ${['all','待读','在读','已读','已整理'].map(s=>`<span class="chip ${filter===s?'on':''}" onclick="setLitFilter('${s}')">${s==='all'?'全部':s}</span>`).join('')}
       <input class="fg" style="max-width:220px;margin-left:auto;" placeholder="搜索标题/作者/标签…" value="${esc(search)}" oninput="setLitSearch(this.value)">
       <span class="btn primary sm" onclick="litModal()">+ 添加文献</span>
+      <span class="btn sm" onclick="litImportModal()">📥 导入文献</span>
+      <span class="btn sm" onclick="litExportModal()">⇩ 导出文献</span>
     </div>
     ${list.length? list.map(l=>`
       <div class="lit-card">
@@ -849,6 +909,7 @@ pages.literature = function(){
             <div class="lm">${esc(l.authors)} · ${esc(l.venue)} · ${l.year||''} ${l.doi?'· DOI: '+esc(l.doi):''}</div>
           </div>
           <div>
+            <span class="btn sm" title="复制 BibTeX 引用" style="margin-right:8px;padding:2px 9px;font-size:12px;" onclick="event.stopPropagation();litCopyBib('${l.id}')">⧉ BibTeX</span>
             <span class="tag ${litStatusTag(l.status)}">${esc(l.status)}</span>
             ${l.rating? '★'.repeat(l.rating):''}
           </div>
@@ -902,6 +963,390 @@ function litSave(id){
   save(); closeModal(); pages.literature(); toast('已保存');
 }
 function litDel(id){ uiConfirm('确认删除该文献？',()=>{ DB.literature=DB.literature.filter(x=>x.id!==id); save(); closeModal(); pages.literature(); toast('已删除'); }); }
+
+/* ============================================================
+   2.5 文献导出（BibTeX / RIS / EndNote XML / CSV）
+   ============================================================ */
+function litFiltered(){
+  const filter = pages.literature._f || 'all';
+  const search = pages.literature._s || '';
+  let list = DB.literature;
+  if(filter!=='all') list = list.filter(l=>l.status===filter);
+  if(search) list = list.filter(l=>(l.title+l.authors+l.tags.join('')+l.venue).toLowerCase().includes(search.toLowerCase()));
+  return list;
+}
+function litIsConference(l){ return /会议|conference|proceedings|symposium|workshop|Proc\.?/i.test(l.venue||''); }
+function litSplitAuthors(s){
+  // 兼容 "Zhang Y, Li M" 与 "Zhang, Y; Li, M" 两种写法
+  const parts = (s||'').split(/[,;，；]\s*/).filter(Boolean);
+  const out = [];
+  parts.forEach(p=>{
+    if(out.length && /^[A-Z]\.?$/.test(p)){ out[out.length-1] += ', '+p; }
+    else out.push(p);
+  });
+  return out.length? out : (s?[s]:[]);
+}
+function litCiteKey(l, used){
+  const au = litSplitAuthors(l.authors)[0]||'anon';
+  const surname = (au.split(/\s+/)[0]||'anon').replace(/[^A-Za-z]/g,'');
+  let key = (surname + (l.year||'') + ((l.title||'').split(/\s+/)[0]||'')).replace(/[^A-Za-z0-9]/g,'');
+  if(!key) key = 'ref';
+  if(used){
+    if(used[key]!==undefined){ used[key]++; key += '_' + (used[key]+1); }
+    else used[key]=0;
+  }
+  return key;
+}
+const bibEsc = s => String(s==null?'':s).replace(/([\\{}&%$#_~^])/g, '\\$1');
+const xmlEsc = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+function litToBibtex(list){
+  const used = {};
+  return list.map(l=>{
+    const key = litCiteKey(l, used);
+    const conf = litIsConference(l);
+    const f = [];
+    const authors = litSplitAuthors(l.authors).map(a=>'{'+a+'}').join(' and ');
+    if(authors) f.push('author  = {'+authors+'}');
+    f.push('title   = {'+bibEsc(l.title)+'}');
+    if(l.venue) f.push((conf?'booktitle':'journal')+' = {'+bibEsc(l.venue)+'}');
+    if(l.year) f.push('year    = {'+bibEsc(l.year)+'}');
+    if(l.doi) f.push('doi     = {'+bibEsc(l.doi)+'}');
+    if(l.tags&&l.tags.length) f.push('keywords= {'+l.tags.join(', ')+'}');
+    if(l.notes) f.push('note    = {'+bibEsc(l.notes).replace(/[\r\n]+/g,' ')+'}');
+    return '@'+(conf?'inproceedings':'article')+'{'+key+',\n  '+f.join(',\n  ')+'\n}';
+  }).join('\n\n');
+}
+function litToRis(list){
+  return list.map(l=>{
+    const conf = litIsConference(l);
+    const r = [];
+    r.push('TY  - '+(conf?'CONF':'JOUR'));
+    litSplitAuthors(l.authors).forEach(a=>r.push('AU  - '+a));
+    r.push('TI  - '+(l.title||''));
+    if(l.venue) r.push((conf?'T2  - ':'JO  - ')+l.venue);
+    if(l.year) r.push('PY  - '+l.year);
+    if(l.doi) r.push('DO  - '+l.doi);
+    (l.tags||[]).forEach(t=>r.push('KW  - '+t));
+    if(l.notes) r.push('N2  - '+String(l.notes).replace(/[\r\n]+/g,' '));
+    r.push('ER  - ');
+    return r.join('\r\n');
+  }).join('\r\n\r\n')+'\r\n';
+}
+function litToEndnoteXml(list){
+  const recs = list.map(l=>{
+    const conf = litIsConference(l);
+    const authors = litSplitAuthors(l.authors).map(a=>'        <author>'+xmlEsc(a)+'</author>').join('\n');
+    const kw = (l.tags||[]).map(t=>'        <keyword>'+xmlEsc(t)+'</keyword>').join('\n');
+    return '    <record>\n      <database name="DRSTUDY Literature Library">drstudy.literature</database>\n      <source-app name="DRSTUDY" version="1.0">DRSTUDY</source-app>\n      <ref-type>'+(conf?'10':'17')+'</ref-type>\n      <contributors>\n        <authors>\n'+authors+'\n        </authors>\n      </contributors>\n      <titles>\n        <title>'+xmlEsc(l.title)+'</title>\n      </titles>\n'+(l.venue?'      <periodical><full-title>'+xmlEsc(l.venue)+'</full-title></periodical>\n':'')+(l.year?'      <dates><year>'+xmlEsc(l.year)+'</year></dates>\n':'')+(l.doi?'      <electronic-resource-num>'+xmlEsc(l.doi)+'</electronic-resource-num>\n':'')+(kw?'      <keywords>\n'+kw+'\n      </keywords>\n':'')+(l.notes?'      <notes>'+xmlEsc(l.notes)+'</notes>\n':'')+'    </record>';
+  }).join('\n');
+  return '<?xml version="1.0" encoding="UTF-8"?>\n<xml data-source="DRSTUDY">\n  <records>\n'+recs+'\n  </records>\n</xml>';
+}
+function litToCsv(list){
+  const headers = ['标题','作者','年份','期刊/会议','DOI','状态','评分','标签','关键观点','笔记','添加时间'];
+  const q = v=>{
+    v = String(v==null?'':v).replace(/\r?\n/g,' ');
+    return /[",]/.test(v)? '"'+v.replace(/"/g,'""')+'"' : v;
+  };
+  const rows = list.map(l=>[l.title,l.authors,l.year,l.venue,l.doi,l.status,l.rating,(l.tags||[]).join('; '),(l.keyPoints||[]).join(' | '),l.notes,(l.addedAt||'')].map(q).join(','));
+  return '\ufeff'+headers.join(',')+'\n'+rows.join('\r\n');
+}
+function litExportModal(){
+  const filtered = litFiltered();
+  const total = DB.literature.length;
+  litExportModal._fmt = litExportModal._fmt || 'bibtex';
+  litExportModal._scope = litExportModal._scope || 'all';
+  const fmts = [
+    {id:'bibtex', name:'BibTeX', ext:'.bib', desc:'LaTeX 原生格式，Overleaf / TeX 中直接 \\cite 引用，也支持 Zotero 导入'},
+    {id:'ris', name:'RIS', ext:'.ris', desc:'通用引文格式，可导入 EndNote / Zotero / Mendeley / NoteExpress'},
+    {id:'endnote', name:'EndNote XML', ext:'.xml', desc:'EndNote 专用格式，EndNote 中 File → Import 选择此文件直接导入'},
+    {id:'csv', name:'CSV 表格', ext:'.csv', desc:'Excel / WPS 可直接打开，用于筛选统计与批量整理'}
+  ];
+  openModal(`
+    <h3>⇩ 导出文献 <span class="close" onclick="closeModal()">✕</span></h3>
+    <div style="font-size:13px;margin-bottom:10px;">导出范围：</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
+      <span class="chip ${litExportModal._scope==='all'?'on':''}" onclick="litExportPick('scope','all')">全部文献（${total} 篇）</span>
+      <span class="chip ${litExportModal._scope==='filtered'?'on':''}" onclick="litExportPick('scope','filtered')">当前筛选结果（${filtered.length} 篇）</span>
+    </div>
+    <div style="font-size:13px;margin-bottom:10px;">导出格式：</div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
+      ${fmts.map(f=>`
+        <div onclick="litExportPick('fmt','${f.id}')" style="cursor:pointer;border:1px solid ${litExportModal._fmt===f.id?'var(--accent)':'var(--border)'};${litExportModal._fmt===f.id?'box-shadow:0 0 0 1px var(--accent);':''}border-radius:10px;padding:10px 12px;">
+          <div style="font-weight:600;font-size:14px;">${f.name} <span style="opacity:.5;font-family:monospace;">${f.ext}</span></div>
+          <div style="font-size:12px;opacity:.6;margin-top:2px;line-height:1.5;">${f.desc}</div>
+        </div>`).join('')}
+    </div>
+    <div class="btn-row">
+      <span class="btn" onclick="closeModal()">取消</span>
+      <span class="btn primary" onclick="litExportRun()">导出文件</span>
+    </div>
+  `);
+}
+function litExportPick(k, v){ litExportModal[k==='scope'?'_scope':'_fmt'] = v; litExportModal(); }
+function litExportRun(){
+  const fmt = litExportModal._fmt||'bibtex';
+  const scope = litExportModal._scope||'all';
+  const list = scope==='filtered'? litFiltered() : DB.literature;
+  if(!list.length){ toast('没有可导出的文献'); return; }
+  const conf = {
+    bibtex:{fn:litToBibtex, ext:'bib', mime:'application/x-bibtex'},
+    ris:{fn:litToRis, ext:'ris', mime:'application/x-research-info-systems'},
+    endnote:{fn:litToEndnoteXml, ext:'xml', mime:'application/xml'},
+    csv:{fn:litToCsv, ext:'csv', mime:'text/csv;charset=utf-8'}
+  }[fmt];
+  const content = conf.fn(list);
+  const size = dlFile('drstudy_literature_'+today()+'.'+conf.ext, content, conf.mime);
+  track('lit_export', {format:fmt, count:list.length, scope:scope});
+  closeModal();
+  toast('已导出 '+list.length+' 篇文献（'+(size/1024).toFixed(1)+' KB）');
+}
+function litCopyBib(id){
+  const l = DB.literature.find(x=>x.id===id);
+  if(!l) return;
+  const bib = litToBibtex([l]);
+  const done = ()=>{ track('lit_copy_bib', {}); toast('BibTeX 引用已复制到剪贴板'); };
+  const fb = ()=>{
+    const ta = document.createElement('textarea');
+    ta.value = bib; ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.select();
+    try{ document.execCommand('copy'); done(); }catch(e){ toast('复制失败，请使用导出功能'); }
+    document.body.removeChild(ta);
+  };
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(bib).then(done).catch(fb);
+  } else fb();
+}
+
+/* ============================================================
+   2.6 文献导入（DOI / arXiv / PubMed / 链接 自动抓取题录入库）
+   ============================================================ */
+function litImportModal(){
+  openModal(`
+    <h3>📥 导入文献 <span class="close" onclick="closeModal()">✕</span></h3>
+    <div style="font-size:13px;opacity:.7;margin-bottom:10px;line-height:1.6;">
+      粘贴 <b>DOI</b>、<b>arXiv 链接/编号</b>、<b>PubMed 链接/PMID</b> 或论文网址，每行一条。<br>
+      将自动调用 CrossRef / OpenAlex / PubMed 公开接口抓取题录并入库（含 DOI 查重）。
+    </div>
+    <textarea id="lf_imp" rows="7" style="width:100%;box-sizing:border-box;font-family:monospace;font-size:13px;" placeholder="10.1038/s41586-024-07425-w&#10;https://arxiv.org/abs/2101.00001&#10;https://pubmed.ncbi.nlm.nih.gov/12345678/&#10;https://doi.org/10.1016/j.energy.2023.01.001"></textarea>
+    <div id="lf_imp_res" style="margin-top:10px;font-size:13px;max-height:220px;overflow:auto;"></div>
+    <div class="btn-row">
+      <span class="btn" onclick="closeModal()">取消</span>
+      <span class="btn primary" id="lf_imp_btn" onclick="litDoImport()">开始识别导入</span>
+    </div>
+  `);
+}
+/* 解析单行输入 → {type, value} 或 null */
+function litParseInput(line){
+  const s = (line||'').trim();
+  if(!s) return null;
+  let m;
+  // doi.org / dx.doi.org URL
+  m = s.match(/(?:dx\.)?doi\.org\/(10\.\d{4,9}\/[^\s"<>]+)/i);
+  if(m) return {type:'doi', value:m[1]};
+  // arXiv URL（含 abs/pdf 或新版 arxiv.org/abs/2101.00001、旧版 arxiv.org/pdf/cs/0112001）
+  m = s.match(/arxiv\.org\/(?:abs|pdf)\/([0-9]{4}\.[0-9]{4,5}(?:v[0-9]+)?|[a-z\-]+\/[0-9]{7})/i);
+  if(m) return {type:'arxiv', value:m[1]};
+  // PubMed URL
+  m = s.match(/pubmed\.ncbi\.nlm\.nih\.gov\/(\d+)/i);
+  if(m) return {type:'pmid', value:m[1]};
+  // 纯 DOI：10.xxxx/yyyy
+  m = s.match(/^(10\.\d{4,9}\/[^\s]+)$/i);
+  if(m) return {type:'doi', value:m[1]};
+  // 纯 arXiv id
+  m = s.match(/^([0-9]{4}\.[0-9]{4,5}(?:v[0-9]+)?|[a-z\-]+\/[0-9]{7})$/i);
+  if(m) return {type:'arxiv', value:m[1]};
+  // 纯 PMID（7-9 位数字）
+  m = s.match(/^(\d{7,9})$/);
+  if(m) return {type:'pmid', value:m[1]};
+  // 任意文本中提取 DOI
+  m = s.match(/(10\.\d{4,9}\/[^\s"<>]+)/i);
+  if(m) return {type:'doi', value:m[1]};
+  // 兜底：当作网页 URL 尝试（提取不到 DOI 时多半会失败）
+  if(/^https?:\/\//i.test(s)) return {type:'url', value:s};
+  return null;
+}
+/* CrossRef politeness 邮箱（当前账号若为邮箱格式则带上，进入 polite pool） */
+function litMailto(){
+  try{
+    const acc = CUR && CUR.account;
+    return (acc && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(acc)) ? acc : '';
+  }catch(e){ return ''; }
+}
+/* fetch 带超时 */
+function litFetch(url, ms){
+  return new Promise((resolve, reject)=>{
+    let done = false;
+    const t = setTimeout(()=>{ if(done) return; done = true; reject(new Error('timeout')); }, ms||15000);
+    fetch(url).then(r=>{ if(done) return; done = true; clearTimeout(t); resolve(r); })
+      .catch(e=>{ if(done) return; done = true; clearTimeout(t); reject(e); });
+  });
+}
+/* CrossRef message → 统一题录 */
+function mapCrossref(j){
+  const m = (j && j.message) || {};
+  const title = (m.title && m.title[0]) || '';
+  const authors = (m.author||[]).map(a=>{
+    const fam = a.family||'', giv = a.given||'';
+    if(fam && giv) return fam + ' ' + giv.split(/\s+/).map(p=>p[0]?p[0]+'.':'').join('');
+    return fam || giv || '';
+  }).filter(Boolean).join(', ');
+  const dp = m.issued && m.issued['date-parts'] && m.issued['date-parts'][0];
+  const year = (dp && dp[0]) ? String(dp[0]) : '';
+  let venue = '';
+  if(m['container-title'] && m['container-title'][0]) venue = m['container-title'][0];
+  else if(m['event-name']) venue = m['event-name'];
+  const doi = m.DOI || '';
+  if(!title && !doi) return null;
+  return {title, authors, year, venue, doi, source:'CrossRef'};
+}
+/* OpenAlex work → 统一题录 */
+function mapOpenAlex(w){
+  const title = w.display_name || '';
+  const authors = (w.authorships||[]).map(a=>a.author && a.author.display_name).filter(Boolean).join(', ');
+  const year = w.publication_year ? String(w.publication_year) : '';
+  let venue = '';
+  if(w.primary_location && w.primary_location.source && w.primary_location.source.display_name) venue = w.primary_location.source.display_name;
+  else if(w.host_venue && w.host_venue.display_name) venue = w.host_venue.display_name;
+  let doi = w.doi || '';
+  doi = doi.replace(/^https?:\/\/doi\.org\//i, '');
+  if(!title && !doi) return null;
+  return {title, authors, year, venue, doi, source:'OpenAlex'};
+}
+/* PubMed esummary → 统一题录 */
+function mapPubmed(j, uid){
+  const r = j && j.result && j.result[uid];
+  if(!r) return null;
+  const title = (r.title||'').replace(/\.$/, '');
+  const authors = (r.authors||[]).map(a=>a.name).filter(Boolean).join(', ');
+  const ym = (r.pubdate||'').match(/\d{4}/);
+  const venue = r.fulljournalname || r.source || '';
+  const doiEnt = (r.articleids||[]).find(x=>x.idtype==='doi');
+  if(!title) return null;
+  return {title, authors, year: ym?ym[0]:'', venue, doi: doiEnt?doiEnt.value:'', source:'PubMed'};
+}
+/* 根据 meta 抓取题录：CrossRef 优先，OpenAlex 降级，PubMed 走 eutils */
+async function litFetchMeta(meta){
+  const mt = litMailto();
+  const mtq = mt ? '?mailto='+encodeURIComponent(mt) : '';
+  if(meta.type === 'doi'){
+    try{
+      const r = await litFetch('https://api.crossref.org/works/'+meta.value+mtq, 15000);
+      if(r.ok){ const j = await r.json(); const m = mapCrossref(j); if(m) return m; }
+    }catch(e){}
+    try{
+      const r = await litFetch('https://api.openalex.org/works/doi:'+meta.value, 15000);
+      if(r.ok){ const j = await r.json(); const m = mapOpenAlex(j); if(m) return m; }
+    }catch(e){}
+    return null;
+  }
+  if(meta.type === 'arxiv'){
+    // arXiv 编号 → arXiv DOI（10.48550/arXiv.xxxx.xxxxx），CrossRef 收录后可直接查
+    const arxivDoi = '10.48550/arXiv.'+meta.value;
+    try{
+      const r = await litFetch('https://api.crossref.org/works/'+arxivDoi+mtq, 15000);
+      if(r.ok){ const j = await r.json(); const m = mapCrossref(j); if(m){ m.doi = m.doi || arxivDoi; return m; } }
+    }catch(e){}
+    try{
+      const r = await litFetch('https://api.openalex.org/works/doi:'+arxivDoi, 15000);
+      if(r.ok){ const j = await r.json(); const m = mapOpenAlex(j); if(m){ m.doi = m.doi || arxivDoi; return m; } }
+    }catch(e){}
+    return null;
+  }
+  if(meta.type === 'pmid'){
+    try{
+      const r = await litFetch('https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id='+meta.value+'&retmode=json', 15000);
+      if(r.ok){ const j = await r.json(); const m = mapPubmed(j, meta.value); if(m) return m; }
+    }catch(e){}
+    return null;
+  }
+  return null;
+}
+function renderImpProgress(results, done, total){
+  const ok = results.filter(r=>r.ok).length;
+  const dup = results.filter(r=>r.dup).length;
+  const fail = results.filter(r=>!r.ok && !r.dup).length;
+  const color = r=> r.ok ? '#4caf50' : (r.dup ? '#ff9800' : '#f44336');
+  const icon = r=> r.ok ? '✓' : (r.dup ? '↻' : '✕');
+  return '<div style="margin-bottom:8px;font-weight:600;">进度 '+done+'/'+total+
+    ' · <span style="color:#4caf50;">成功 '+ok+'</span>'+
+    (dup?' · <span style="color:#ff9800;">重复 '+dup+'</span>':'')+
+    (fail?' · <span style="color:#f44336;">失败 '+fail+'</span>':'')+'</div>'+
+    '<div style="font-size:12px;line-height:1.5;">'+
+    results.map(r=>'<div style="padding:4px 0;border-bottom:1px solid var(--border);">'+
+      '<span style="color:'+color(r)+';font-weight:700;margin-right:6px;">'+icon(r)+'</span>'+
+      '<span style="opacity:.5;font-family:monospace;font-size:11px;">'+esc(r.line).slice(0,55)+'</span>'+
+      (r.title?'<br><span style="opacity:.85;">'+esc(r.title).slice(0,80)+(r.source?' <span style="opacity:.4;">['+esc(r.source)+']</span>':'')+'</span>':'')+
+      (!r.ok?'<br><span style="opacity:.5;font-size:11px;">'+esc(r.reason||'')+'</span>':'')+
+      '</div>').join('')+'</div>';
+}
+async function litDoImport(){
+  const raw = val('lf_imp').trim();
+  if(!raw){ toast('请粘贴至少一条 DOI 或链接'); return; }
+  const lines = raw.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+  const resEl = document.getElementById('lf_imp_res');
+  const btn = document.getElementById('lf_imp_btn');
+  btn.style.opacity = '.5'; btn.style.pointerEvents = 'none'; btn.textContent = '识别中…';
+  const results = [];
+  let imported = 0, dupSkip = 0, fail = 0;
+  for(let i=0;i<lines.length;i++){
+    const meta = litParseInput(lines[i]);
+    if(!meta){
+      results.push({line:lines[i], ok:false, reason:'无法识别'});
+      fail++; resEl.innerHTML = renderImpProgress(results, i+1, lines.length);
+      continue;
+    }
+    resEl.innerHTML = renderImpProgress(results, i, lines.length) + '<div style="opacity:.6;">正在抓取第 '+(i+1)+' 条…</div>';
+    try{
+      const rec = await litFetchMeta(meta);
+      if(!rec){
+        results.push({line:lines[i], ok:false, reason:'未找到题录'});
+        fail++; resEl.innerHTML = renderImpProgress(results, i+1, lines.length);
+        continue;
+      }
+      // DOI 查重（不区分大小写）
+      const doiKey = rec.doi ? rec.doi.toLowerCase() : '';
+      const dup = doiKey && DB.literature.some(l=>l.doi && l.doi.toLowerCase()===doiKey);
+      if(dup){
+        results.push({line:lines[i], ok:false, dup:true, title:rec.title, source:rec.source, reason:'文献库已存在'});
+        dupSkip++; resEl.innerHTML = renderImpProgress(results, i+1, lines.length);
+        continue;
+      }
+      // 入库（待读状态，置顶）
+      DB.literature.unshift({
+        id: uid(), addedAt: now(),
+        title: rec.title, authors: rec.authors, year: rec.year, venue: rec.venue, doi: rec.doi,
+        tags: [], status: '待读', rating: 0, notes: '', keyPoints: []
+      });
+      imported++;
+      results.push({line:lines[i], ok:true, title:rec.title, source:rec.source});
+    }catch(e){
+      results.push({line:lines[i], ok:false, reason: String(e.message||e).slice(0,40)});
+      fail++;
+    }
+    resEl.innerHTML = renderImpProgress(results, i+1, lines.length);
+  }
+  if(imported>0){
+    save();
+    const pg = document.getElementById('pg-literature');
+    if(pg) pages.literature();
+  }
+  track('lit_import', {total:lines.length, imported, dup:dupSkip, fail});
+  btn.style.opacity = '1'; btn.style.pointerEvents = ''; btn.textContent = '完成';
+  if(imported>0) toast('已导入 '+imported+' 篇'+(dupSkip?'（跳过 '+dupSkip+' 篇重复）':'')+(fail?'，失败 '+fail:''));
+  else if(dupSkip) toast('全部 '+dupSkip+' 篇已存在，未新增');
+  else toast('导入失败，请检查链接或稍后重试');
+}
+function dlFile(name, content, mime){
+  const blob = new Blob([content], {type: mime});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(a.href), 2000);
+  return blob.size;
+}
 
 /* ============================================================
    3. 论文写作（学位论文章节 + 小论文投稿）
@@ -1393,16 +1838,42 @@ pages.settings = function(){
     <div class="card">
       <h3>💾 数据管理</h3>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;">
-        <div class="dm-btn" onclick="dataExport()"><span class="ic">📥</span><span class="lb">导出全部数据</span><span class="ds">JSON 备份</span></div>
-        <div class="dm-btn" onclick="dataImport()"><span class="ic">📤</span><span class="lb">导入数据</span><span class="ds">从 JSON 恢复</span></div>
+        <div class="dm-btn" onclick="dataExport()"><span class="ic">📥</span><span class="lb">导出备份</span><span class="ds">全部账号+数据→JSON</span></div>
+        <div class="dm-btn" onclick="dataImport()"><span class="ic">📤</span><span class="lb">导入恢复</span><span class="ds">从JSON还原</span></div>
         <div class="dm-btn" onclick="loadDemo()"><span class="ic">🎯</span><span class="lb">载入示例数据</span><span class="ds">体验完整功能</span></div>
         <div class="dm-btn" onclick="dataReset()" style="border-color:var(--danger);"><span class="ic">🗑</span><span class="lb" style="color:var(--danger);">清空所有数据</span><span class="ds">不可恢复</span></div>
       </div>
-      <div class="tips">数据默认存储在浏览器本地。若站点已接入云端（侧边栏显示"☁ 云端已连接"），账号数据会自动同步到云端，换设备登录同一账号即可继续使用。建议定期导出 JSON 备份。</div>
+      <div class="tips">导出备份会保存所有账号数据（文献、待办、里程碑、实验、简历等）及个人设置为 JSON 文件。换电脑或重装系统前请先导出。导入恢复时可选择 JSON 文件还原全部数据。建议每周导出一次备份。</div>
     </div>
     <div class="card">
       <h3>☁ 云端同步</h3>
       <p class="muted" style="font-size:13px;" id="cloudInfo">—</p>
+    </div>
+    <div class="card" id="premiumCard">
+      <h3>⭐ 云同步会员 <span class="sub" style="font-size:12px;">赞赏支持 · 解锁云端同步</span></h3>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+        <div style="background:var(--panel2);border-radius:10px;padding:12px;">
+          <div style="font-weight:600;margin-bottom:8px;">🆓 免费版</div>
+          <div style="font-size:12px;line-height:1.9;color:var(--text);">
+            ✓ 全部本地功能（文献/论文/里程碑/实验等）<br>
+            ✓ 多账号管理<br>
+            ✓ 数据导出/导入备份<br>
+            <span style="opacity:.4;">— 云端同步需开通会员 —</span>
+          </div>
+        </div>
+        <div style="background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:10px;padding:12px;color:#fff;">
+          <div style="font-weight:600;margin-bottom:8px;">⭐ 会员版 <span style="font-size:12px;opacity:.8;">¥29/年</span></div>
+          <div style="font-size:12px;line-height:1.9;">
+            ✓ 包含免费版全部功能<br>
+            ✓ 多设备云端同步<br>
+            ✓ 自动备份到云端<br>
+            ✓ 换设备登录数据不丢<br>
+          </div>
+        </div>
+      </div>
+      <div id="premiumStatus" style="margin-bottom:14px;"></div>
+      <div id="premiumAction"></div>
+      <div class="tips">会员定价 ¥29/年（一杯咖啡钱）。扫描下方赞赏码付费后，输入激活码即可解锁云端同步。支持开发团队持续维护和更新。</div>
     </div>
     <div class="card">
       <h3>ℹ 关于 DRSTUDY</h3>
@@ -1415,10 +1886,209 @@ pages.settings = function(){
       ? ('已连接云端（'+(CB.mode==='supabase'?'Supabase':'腾讯云 CloudBase')+'）。账号数据自动双向同步：本机修改后约 2 秒上传，登录时自动拉取云端最新版，换设备登录同一账号数据不丢。'+(CB.lastSync?('上次同步：'+CB.lastSync):''))
       : '当前为本地模式（数据仅保存在本设备浏览器）。站点管理员在部署目录的 cloud-config.js 中配置云端（CloudBase 环境 ID 或 Supabase URL/key）后，即可自动启用云端同步。';
   }
+  renderPremiumStatus();
+  renderPremiumAction();
 };
+/* ---- 会员/赞赏体系：免费本地 + 付费云同步 ---- */
+function checkPremium(){
+  if(!DB.settings.premium) return false;
+  if(DB.settings.premiumUntil){
+    if(new Date(DB.settings.premiumUntil) < new Date()) return false;
+  }
+  return true;
+}
+function renderPremiumStatus(){
+  const el = document.getElementById('premiumStatus'); if(!el) return;
+  if(checkPremium()){
+    el.innerHTML = '<div style="display:flex;align-items:center;gap:10px;background:rgba(76,175,80,.1);border:1px solid rgba(76,175,80,.3);border-radius:10px;padding:12px;">'
+      + '<span style="font-size:28px;">⭐</span>'
+      + '<div><div style="font-weight:600;color:#4caf50;">会员已开通</div>'
+      + '<div style="font-size:12px;opacity:.6;">有效期至 '+(DB.settings.premiumUntil||'永久')+'</div></div></div>';
+  }else{
+    el.innerHTML = '<div style="display:flex;align-items:center;gap:10px;background:var(--panel2);border-radius:10px;padding:12px;">'
+      + '<span style="font-size:28px;">🆓</span>'
+      + '<div><div style="font-weight:600;">当前为免费版</div>'
+      + '<div style="font-size:12px;opacity:.6;">全部本地功能可用，开通会员解锁云端同步</div></div></div>';
+  }
+}
+function renderPremiumAction(){
+  const el = document.getElementById('premiumAction'); if(!el) return;
+  if(checkPremium()){
+    el.innerHTML = '<span class="btn sm" onclick="deactivatePremium()" style="opacity:.5;">取消会员</span>';
+    return;
+  }
+  el.innerHTML = `
+    <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;">
+      <div style="text-align:center;flex-shrink:0;">
+        <div style="width:130px;height:130px;background:#fff;border-radius:12px;padding:8px;margin:0 auto 6px;display:flex;align-items:center;justify-content:center;">
+          <svg viewBox="0 0 100 100" style="width:100%;height:100%;" id="qrSvg">${genQRPattern()}</svg>
+        </div>
+        <div style="font-size:11px;opacity:.5;">微信/支付宝赞赏码</div>
+      </div>
+      <div style="flex:1;min-width:200px;">
+        <div style="font-size:13px;margin-bottom:6px;opacity:.7;">付费后输入激活码：</div>
+        <div style="display:flex;gap:8px;">
+          <input id="premiumCode" placeholder="DR-XXXX-XXXX-XXXX" style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--panel);color:var(--text);font-size:13px;font-family:monospace;">
+          <span class="btn primary sm" onclick="activatePremium()">激活</span>
+        </div>
+        <div style="font-size:11px;opacity:.4;margin-top:6px;line-height:1.5;">付费后将收到激活码，输入后即时解锁云端同步（有效期 365 天）。<br>如暂未配置云端，会员开通后配置即自动生效。</div>
+      </div>
+    </div>`;
+}
+function activatePremium(){
+  const code = (document.getElementById('premiumCode')||{}).value || '';
+  const c = code.trim();
+  if(c.length < 16){ toast('激活码格式不正确（至少 16 位）'); return; }
+  // TODO: 接入云函数真实验证（当前为框架占位：16+ 位激活码即可激活）
+  const until = new Date(); until.setFullYear(until.getFullYear()+1);
+  DB.settings.premium = true;
+  DB.settings.premiumUntil = until.toISOString().slice(0,10);
+  DB.settings.premiumCode = c;
+  save();
+  renderPremiumStatus();
+  renderPremiumAction();
+  track('premium_activate', {code:c.slice(0,4)+'****'});
+  toast('⭐ 会员已开通，云端同步已解锁！');
+}
+function deactivatePremium(){
+  uiConfirm('确认取消会员？取消后云端同步将不可用（本地数据不受影响）。',()=>{
+    DB.settings.premium = false;
+    DB.settings.premiumUntil = '';
+    save();
+    renderPremiumStatus();
+    renderPremiumAction();
+    track('premium_deactivate');
+    toast('已取消会员');
+  });
+}
+/* 装饰性 QR 码图案（替换为真实赞赏码图片即可） */
+function genQRPattern(){
+  let s='';
+  const corner=(x,y)=>`<rect x="${x}" y="${y}" width="22" height="22" fill="#000"/><rect x="${x+4}" y="${y+4}" width="14" height="14" fill="#fff"/><rect x="${x+7}" y="${y+7}" width="8" height="8" fill="#000"/>`;
+  s+=corner(2,2)+corner(76,2)+corner(2,76);
+  let seed=42;
+  const rnd=()=>(seed=(seed*1103515245+12345)&0x7fffffff,seed/0x7fffffff);
+  for(let y=0;y<100;y+=5){for(let x=0;x<100;x+=5){
+    if((x<28&&y<28)||(x>72&&y<28)||(x<28&&y>72))continue;
+    if(rnd()>0.55)s+=`<rect x="${x}" y="${y}" width="4" height="4" fill="#000"/>`;
+  }}
+  return s;
+}
 function saveProfile(){ DB.profile={degree:val('pf_degree'),name:val('pf_name').trim(),school:val('pf_school').trim(),major:val('pf_major').trim(),advisor:val('pf_advisor').trim(),enrollYear:val('pf_ey').trim(),targetYear:val('pf_ty').trim(),avatar:DB.profile.avatar||'',bio:val('pf_bio').trim()}; save(); toast('已保存'); socSyncProfile(); }
-function dataExport(){ const blob=new Blob([JSON.stringify(DB,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='drstudy_backup_'+today()+'.json'; a.click(); toast('已导出'); }
-function dataImport(){ const inp=document.createElement('input'); inp.type='file'; inp.accept='.json'; inp.onchange=e=>{ const f=e.target.files[0]; if(!f)return; const r=new FileReader(); r.onload=()=>{ try{ const d=JSON.parse(r.result); if(!d.literature)throw 0; DB=d; save(); go('dashboard'); toast('导入成功'); }catch(err){ toast('文件格式错误'); } }; r.readAsText(f); }; inp.click(); }
+function dataExport(){
+  // 收集所有 drbuddy_ 前缀的 localStorage 键（账号、数据、主题、会话）
+  const allStorage = {};
+  for(let i=0;i<localStorage.length;i++){
+    const key = localStorage.key(i);
+    if(key && key.startsWith('drbuddy_')){
+      allStorage[key] = localStorage.getItem(key);
+    }
+  }
+  const counts = {
+    文献: (DB.literature||[]).length,
+    里程碑: (DB.milestones||[]).length,
+    待办: (DB.todos||[]).length,
+    学术活动: (DB.academic||[]).length,
+    实验记录: (DB.research||[]).length,
+    论文章节: ((DB.thesis&&DB.thesis.chapters)||[]).length,
+    导师汇报: ((DB.mentor&&DB.mentor.reports)||[]).length
+  };
+  const backup = {
+    meta: {
+      app: 'DRSTUDY',
+      version: 2,
+      exportedAt: now(),
+      exportDate: today(),
+      account: CUR ? (CUR.account||'访客') : '访客',
+      accountId: CUR ? CUR.id : 'guest',
+      accountCount: getAccounts().length,
+      dataCounts: counts
+    },
+    storage: allStorage
+  };
+  const blob = new Blob([JSON.stringify(backup,null,2)],{type:'application/json'});
+  const sizeKB = (blob.size/1024).toFixed(1);
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'drstudy_backup_'+today()+'.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(a.href), 2000);
+  track('export', {size:blob.size, accounts:backup.meta.accountCount});
+  toast('已导出 '+sizeKB+' KB 备份文件');
+}
+function dataImport(){
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = '.json,application/json';
+  inp.onchange = e => {
+    const f = e.target.files[0];
+    if(!f) return;
+    const r = new FileReader();
+    r.onload = () => {
+      try {
+        const parsed = JSON.parse(r.result);
+        // 判断备份格式：新版完整备份（含 meta+storage）或旧版单DB
+        const isFullBackup = parsed.meta && parsed.storage;
+        const isSimpleDB = parsed.literature !== undefined && typeof parsed === 'object';
+        if(!isFullBackup && !isSimpleDB) throw new Error('format');
+        if(isFullBackup){
+          // 新版完整备份：恢复全部 localStorage
+          const m = parsed.meta||{};
+          const c = m.dataCounts||{};
+          const countStr = Object.keys(c).map(k=>k+' '+c[k]).join('， ');
+          const fileSize = (f.size/1024).toFixed(1);
+          uiConfirm(
+            '检测到完整备份文件\n'+
+            '──────────\n'+
+            '导出时间：'+(m.exportDate||'未知')+'\n'+
+            '账号：'+(m.account||'未知')+'（含 '+(m.accountCount||1)+' 个账号）\n'+
+            '文件大小：'+fileSize+' KB\n'+
+            '数据概览：'+countStr+'\n'+
+            '──────────\n'+
+            '导入将覆盖当前全部数据（账号、文献、待办等），\n'+
+            '建议先导出当前数据作为安全备份。\n'+
+            '确认导入？',
+            ()=>{
+              Object.entries(parsed.storage).forEach(([key,val])=>{
+                if(key.startsWith('drbuddy_')){
+                  localStorage.setItem(key, val);
+                }
+              });
+              track('import', {type:'full', accounts:m.accountCount||1});
+              toast('导入成功，正在刷新...');
+              setTimeout(()=>location.reload(), 800);
+            }
+          );
+        } else {
+          // 旧版单DB备份：导入到当前账号
+          const d = parsed;
+          const countStr = '文献 '+(d.literature||[]).length+'，里程碑 '+(d.milestones||[]).length+'，待办 '+(d.todos||[]).length+'，论文章节 '+((d.thesis&&d.thesis.chapters)||[]).length;
+          uiConfirm(
+            '检测到数据备份文件\n'+
+            '──────────\n'+
+            '数据概览：'+countStr+'\n'+
+            '──────────\n'+
+            '导入将覆盖当前账号的数据，\n'+
+            '确认继续？',
+            ()=>{
+              DB = d;
+              save();
+              track('import', {type:'legacy', lit:(d.literature||[]).length, todo:(d.todos||[]).length, mile:(d.milestones||[]).length});
+              go('dashboard');
+              toast('导入成功');
+            }
+          );
+        }
+      } catch(err){
+        toast('文件格式错误，无法导入');
+      }
+    };
+    r.readAsText(f);
+  };
+  inp.click();
+}
 function dataReset(){ uiConfirm('⚠️ 确认清空所有数据？此操作不可恢复！建议先导出备份。',()=>{ uiConfirm('再次确认：真的要清空全部数据吗？',()=>{ DB=defaultData(); save(); go('dashboard'); showOnboard(); toast('已清空，重新开始'); }); }); }
 function loadDemo(){ const doIt=()=>{ DB=genDemo(); DB.settings.isDemo=true; DB.settings.onboarded=true; save(); go('dashboard'); toast('已载入示例数据，可随时清除并录入你的信息'); }; if(DB.literature.length){ uiConfirm('将覆盖现有数据，确认载入示例？',doIt); } else doIt(); }
 function exitDemo(){ uiConfirm('将清除示例数据，开始录入你自己的信息。继续？',()=>{ DB=defaultData(); DB.settings.onboarded=true; save(); showOnboard(); toast('已清除示例数据'); }); }
@@ -2089,6 +2759,7 @@ function bootApp(){
   updateBadges();
   go('dashboard');
   applyResp();
+  track('app_start', {account:CUR?CUR.id:null, cloud:CB.on?'1':'0', premium:DB.settings.premium?'1':'0'});
   const lp = document.getElementById('logoutPill'); if(lp) lp.style.display = '';
   // 社交：启动未读轮询 + 首次拉取好友列表
   if(CB.on && CUR && CUR.id!=='guest'){ startUnreadPoll(); setTimeout(socRefresh, 2000); }
