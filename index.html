@@ -215,6 +215,31 @@ tr:hover td{background:#242c46;}
 .dm-btn .ic{font-size:26px;}
 .dm-btn .lb{font-size:13px;color:var(--text);}
 .dm-btn .ds{font-size:11px;color:var(--muted);}
+/* 6 套餐商业体系 */
+.plans-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:6px;}
+@media (max-width:980px){.plans-grid{grid-template-columns:repeat(2,1fr);}}
+@media (max-width:620px){.plans-grid{grid-template-columns:1fr;}}
+.plan-card{position:relative;background:var(--panel);border:2px solid var(--border);border-radius:12px;padding:14px;cursor:pointer;transition:all .18s;display:flex;flex-direction:column;gap:6px;}
+.plan-card:hover{border-color:var(--accent2);background:var(--panel2);transform:translateY(-2px);}
+.plan-card.selected{border-color:var(--accent);background:var(--panel2);box-shadow:0 0 0 3px rgba(0,122,255,.12);}
+.plan-card.recommend{border-color:#007aff44;}
+.plan-card.recommend.selected{border-color:#007aff;box-shadow:0 0 0 3px rgba(0,122,255,.18);}
+.plan-tag{position:absolute;top:-9px;left:14px;background:#007aff;color:#fff;font-size:11px;font-weight:600;padding:3px 9px;border-radius:8px;letter-spacing:.5px;}
+.plan-head{display:flex;align-items:center;gap:8px;}
+.plan-icon{font-size:20px;}
+.plan-name{font-size:14px;font-weight:600;}
+.plan-price{font-size:22px;font-weight:700;line-height:1.2;margin-top:2px;}
+.plan-sub{font-size:11px;opacity:.5;margin-bottom:4px;}
+.plan-feats{list-style:none;padding:0;margin:6px 0 8px;font-size:12px;line-height:1.7;color:var(--text);}
+.plan-feats li{padding-left:14px;position:relative;opacity:.85;}
+.plan-feats li::before{content:'✓';position:absolute;left:0;color:var(--accent);font-weight:700;}
+.plan-check{margin-top:auto;font-size:12px;font-weight:600;color:#4caf50;text-align:center;padding:6px;border-radius:8px;background:rgba(76,175,80,.1);}
+.plan-act{margin-top:auto;font-size:12px;opacity:.6;text-align:center;padding:6px;border-radius:8px;border:1px dashed var(--border);}
+.plan-card.selected .plan-act{opacity:1;border-color:var(--accent);background:var(--accent);color:#fff;background:rgba(0,122,255,.08);}
+/* 月/年周期切换 */
+.cycle-toggle{display:inline-flex;background:var(--panel2);border:1px solid var(--border);border-radius:999px;padding:3px;font-size:12px;}
+.cycle-toggle span{padding:5px 11px;border-radius:999px;cursor:pointer;transition:all .15s;opacity:.5;}
+.cycle-toggle span.active{opacity:1;background:var(--accent);color:#fff;font-weight:600;box-shadow:0 2px 6px rgba(0,122,255,.25);}
 /* ===== Onboarding 引导向导 ===== */
 #onboard{display:none;position:fixed;inset:0;background:linear-gradient(160deg,#171d31,#121622 60%);z-index:300;align-items:center;justify-content:center;padding:20px;overflow-y:auto;}
 #onboard.show{display:flex;}
@@ -432,7 +457,7 @@ function defaultData(){
     academic:[],
     todos:[],
     cv:{papers:[],awards:[],skills:[],services:[]},
-    settings:{onboarded:false, premium:false, premiumUntil:''},
+    settings:{onboarded:false, premium:false, premiumUntil:'', planTier:'free', planCycle:'month', planUntil:''},
     social:{friends:[],pending:[],sent:[],lastFetch:0,unreadCount:0}
   };
 }
@@ -475,6 +500,12 @@ function loadAccountData(id){
     d.thesis = Object.assign({}, def.thesis, d.thesis||{});
     d.mentor = Object.assign({}, def.mentor, d.mentor||{});
     d.social = Object.assign({}, def.social, d.social||{});
+    if(!Array.isArray(d.literature)) d.literature = [];
+    d.literature = d.literature.map(litNorm).filter(Boolean);
+    if(!Array.isArray(d.milestones)) d.milestones = [];
+    if(!Array.isArray(d.research)) d.research = [];
+    if(!Array.isArray(d.academic)) d.academic = [];
+    if(!Array.isArray(d.todos)) d.todos = [];
     return d;
   }catch(e){ return defaultData(); }
 }
@@ -586,21 +617,10 @@ function cloudInit(){
     return;
   }
   if(c.env){
-    /* ===== 腾讯云 CloudBase 模式 ===== */
-    cloudPill('☁ 连接云端…','sync');
-    loadScript(['https://static.cloudbase.net/cloudbase-js-sdk/latest/cloudbase.full.js',
-                'https://static.cloudbase.net/cloudbase-js-sdk/2.17.3/cloudbase.full.js'],
-      async () => {
-        try{
-          CB.app = cloudbase.init({env:c.env});
-          const auth = CB.app.auth({persistence:'local'});
-          if(!auth.hasLoginState()) await auth.signInAnonymously();
-          CB.on = true; CB.mode = 'cloudbase';
-          cloudPill('☁ 云端已连接','ok');
-          cloudBootSync();
-        }catch(e){ console.warn('CloudBase init fail', e); cloudPill('☁ 云端未连接','err'); }
-      },
-      () => cloudPill('☁ 云端未连接','err'));
+    /* ===== 腾讯云 CloudBase HTTP 直调模式（不需要安全域名，不需要加载 SDK） ===== */
+    CB.on = true; CB.mode = 'cloudbase_http';
+    cloudPill('☁ 云端已连接','ok');
+    cloudBootSync();
     return;
   }
   cloudPill('☁ 本地模式');   // 未配置：纯本地模式
@@ -610,11 +630,17 @@ async function sbUser(){
   if(!CB.on || CB.mode!=='supabase') return null;
   try{ const {data} = await CB.sb.auth.getUser(); return data && data.user; }catch(e){ return null; }
 }
-/* CloudBase 云函数调用 */
+/* CloudBase 云函数调用（HTTP 直调，不需要安全域名） */
 function cbCall(data){
-  if(!CB.on || CB.mode!=='cloudbase') return Promise.resolve(null);
-  return CB.app.callFunction({name: cloudConf().func||'drbuddyCloud', data})
-    .then(r => r && r.result).catch(e => { console.warn('cbCall fail', e); cloudPill('☁ 云端不可用','err'); return null; });
+  if(!CB.on || CB.mode!=='cloudbase_http') return Promise.resolve(null);
+  const c = cloudConf();
+  const url = c.httpUrl || ('https://'+c.env+'.service.tcloudbase.com/'+(c.func||'drbuddyCloud'));
+  return fetch(url, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(data)
+  }).then(r => { if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+    .catch(e => { console.warn('cbCall fail', e); cloudPill('☁ 云端不可用','err'); return null; });
 }
 /* 手机号 → 伪邮箱（仅 Supabase 用；控制台需关闭"确认邮件"） */
 function sbEmail(acc){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(acc) ? acc : (acc||'').replace(/\D/g,'')+'@drstudy.cn'; }
@@ -739,6 +765,12 @@ function load(){
     d.thesis = Object.assign({}, def.thesis, d.thesis||{});
     d.mentor = Object.assign({}, def.mentor, d.mentor||{});
     d.social = Object.assign({}, def.social, d.social||{});
+    if(!Array.isArray(d.literature)) d.literature = [];
+    d.literature = d.literature.map(litNorm).filter(Boolean);
+    if(!Array.isArray(d.milestones)) d.milestones = [];
+    if(!Array.isArray(d.research)) d.research = [];
+    if(!Array.isArray(d.academic)) d.academic = [];
+    if(!Array.isArray(d.todos)) d.todos = [];
     return d;
   }catch(e){ return defaultData(); }
 }
@@ -887,9 +919,28 @@ pages.dashboard = function(){
 /* ============================================================
    2. 文献管理
    ============================================================ */
+/* 条目级规范化：兼容云端/本地旧数据缺失字段，防止渲染崩溃 */
+function litNorm(l){
+  if(!l || typeof l!=='object') return null;
+  return {
+    id: l.id||uid(),
+    title: l.title||'',
+    authors: l.authors||'',
+    year: l.year||'',
+    venue: l.venue||'',
+    doi: l.doi||'',
+    tags: Array.isArray(l.tags)? l.tags : [],
+    status: l.status||'待读',
+    rating: parseInt(l.rating)||0,
+    notes: l.notes||'',
+    keyPoints: Array.isArray(l.keyPoints)? l.keyPoints : [],
+    addedAt: l.addedAt||now()
+  };
+}
 pages.literature = function(){
   let filter = pages.literature._f || 'all';
-  const all = DB.literature;
+  const search = pages.literature._s || '';
+  const all = DB.literature || [];
   let list = litFiltered();
 
   document.getElementById('pg-literature').innerHTML = `
@@ -914,8 +965,8 @@ pages.literature = function(){
             ${l.rating? '★'.repeat(l.rating):''}
           </div>
         </div>
-        ${l.tags.length?`<div class="lb">${l.tags.map(t=>`<span class="tag t-gray">${esc(t)}</span>`).join('')}</div>`:''}
-        ${l.keyPoints&&l.keyPoints.length?`<div class="kp-list">${l.keyPoints.map(k=>`<div class="kp">💡 ${esc(k)}</div>`).join('')}</div>`:''}
+        ${(l.tags||[]).length?`<div class="lb">${(l.tags||[]).map(t=>`<span class="tag t-gray">${esc(t)}</span>`).join('')}</div>`:''}
+        ${(l.keyPoints||[]).length?`<div class="kp-list">${(l.keyPoints||[]).map(k=>`<div class="kp">💡 ${esc(k)}</div>`).join('')}</div>`:''}
         ${l.notes?`<div class="notes">${esc(l.notes)}</div>`:''}
       </div>
     `).join('') : '<div class="empty">暂无文献，点击「添加文献」开始构建你的文献库</div>'}
@@ -926,7 +977,7 @@ function setLitFilter(f){ pages.literature._f=f; pages.literature(); }
 function setLitSearch(s){ pages.literature._s=s; pages.literature(); }
 
 function litModal(id){
-  const l = id? DB.literature.find(x=>x.id===id) : {id:'',title:'',authors:'',year:'',venue:'',doi:'',tags:[],status:'待读',rating:0,notes:'',keyPoints:[]};
+  const l = (id? DB.literature.find(x=>x.id===id) : null) || {id:'',title:'',authors:'',year:'',venue:'',doi:'',tags:[],status:'待读',rating:0,notes:'',keyPoints:[]};
   openModal(`
     <h3>${id?'编辑文献':'添加文献'} <span class="close" onclick="closeModal()">✕</span></h3>
     <div class="form-grid">
@@ -937,7 +988,7 @@ function litModal(id){
       <div class="fg"><label>DOI</label><input id="lf_doi" value="${esc(l.doi)}" placeholder="10.xxxx/xxxx"></div>
       <div class="fg"><label>状态</label><select id="lf_status">${['待读','在读','已读','已整理'].map(s=>`<option ${l.status===s?'selected':''}>${s}</option>`).join('')}</select></div>
       <div class="fg"><label>评分（1-5）</label><input id="lf_rating" type="number" min="0" max="5" value="${l.rating||0}"></div>
-      <div class="fg full"><label>标签（逗号分隔）</label><input id="lf_tags" value="${esc(l.tags.join(', '))}" placeholder="热舒适, 现场实测"></div>
+      <div class="fg full"><label>标签（逗号分隔）</label><input id="lf_tags" value="${esc((l.tags||[]).join(', '))}" placeholder="热舒适, 现场实测"></div>
       <div class="fg full"><label>关键观点（每行一条）</label><textarea id="lf_kp" rows="3" placeholder="每行一条关键观点">${esc((l.keyPoints||[]).join('\n'))}</textarea></div>
       <div class="fg full"><label>阅读笔记</label><textarea id="lf_notes" rows="4">${esc(l.notes)}</textarea></div>
     </div>
@@ -970,9 +1021,9 @@ function litDel(id){ uiConfirm('确认删除该文献？',()=>{ DB.literature=DB
 function litFiltered(){
   const filter = pages.literature._f || 'all';
   const search = pages.literature._s || '';
-  let list = DB.literature;
+  let list = DB.literature || [];
   if(filter!=='all') list = list.filter(l=>l.status===filter);
-  if(search) list = list.filter(l=>(l.title+l.authors+l.tags.join('')+l.venue).toLowerCase().includes(search.toLowerCase()));
+  if(search) list = list.filter(l=>(l.title+l.authors+(l.tags||[]).join('')+l.venue).toLowerCase().includes(search.toLowerCase()));
   return list;
 }
 function litIsConference(l){ return /会议|conference|proceedings|symposium|workshop|Proc\.?/i.test(l.venue||''); }
@@ -1850,30 +1901,11 @@ pages.settings = function(){
       <p class="muted" style="font-size:13px;" id="cloudInfo">—</p>
     </div>
     <div class="card" id="premiumCard">
-      <h3>⭐ 云同步会员 <span class="sub" style="font-size:12px;">赞赏支持 · 解锁云端同步</span></h3>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
-        <div style="background:var(--panel2);border-radius:10px;padding:12px;">
-          <div style="font-weight:600;margin-bottom:8px;">🆓 免费版</div>
-          <div style="font-size:12px;line-height:1.9;color:var(--text);">
-            ✓ 全部本地功能（文献/论文/里程碑/实验等）<br>
-            ✓ 多账号管理<br>
-            ✓ 数据导出/导入备份<br>
-            <span style="opacity:.4;">— 云端同步需开通会员 —</span>
-          </div>
-        </div>
-        <div style="background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:10px;padding:12px;color:#fff;">
-          <div style="font-weight:600;margin-bottom:8px;">⭐ 会员版 <span style="font-size:12px;opacity:.8;">¥29/年</span></div>
-          <div style="font-size:12px;line-height:1.9;">
-            ✓ 包含免费版全部功能<br>
-            ✓ 多设备云端同步<br>
-            ✓ 自动备份到云端<br>
-            ✓ 换设备登录数据不丢<br>
-          </div>
-        </div>
-      </div>
+      <h3>💰 套餐与收款 <span class="sub" style="font-size:12px;">从免费版到企业版 · 量级匹配 · 支付宝扫码</span></h3>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:12px;line-height:1.6;">DRSTUDY 提供 <b>6 个套餐</b>，覆盖个人免费到企业部署。开通用支付宝扫下方收款码付款后，开发者 24h 内人工开通 / 升级，已有套餐自动顺延。</div>
       <div id="premiumStatus" style="margin-bottom:14px;"></div>
       <div id="premiumAction"></div>
-      <div class="tips">会员定价 ¥29/年（一杯咖啡钱）。扫描下方赞赏码付费后，输入激活码即可解锁云端同步。支持开发团队持续维护和更新。</div>
+      <div class="tips" style="margin-top:12px;">提示：年付套餐对比月付节省约 17%（按 12 个月算），适合长期使用的研究生用户。企业版支持发票、对公转账、私有部署，<a href="mailto:hello@drstudy.cn" style="color:var(--accent);">联系商务 hello@drstudy.cn</a>。</div>
     </div>
     <div class="card">
       <h3>ℹ 关于 DRSTUDY</h3>
@@ -1918,61 +1950,260 @@ function renderPremiumAction(){
     return;
   }
   el.innerHTML = `
-    <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;">
+    <div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap;">
       <div style="text-align:center;flex-shrink:0;">
-        <div style="width:130px;height:130px;background:#fff;border-radius:12px;padding:8px;margin:0 auto 6px;display:flex;align-items:center;justify-content:center;">
-          <svg viewBox="0 0 100 100" style="width:100%;height:100%;" id="qrSvg">${genQRPattern()}</svg>
-        </div>
-        <div style="font-size:11px;opacity:.5;">微信/支付宝赞赏码</div>
+        <img src="alipay-qr.jpg" alt="支付宝收款码" style="width:170px;height:auto;background:#fff;border-radius:12px;padding:8px;margin:0 auto;display:block;border:1px solid var(--border);">
+        <div style="font-size:11px;opacity:.6;margin-top:6px;">📱 支付宝扫码付款</div>
+        <div style="font-size:10px;opacity:.4;margin-top:2px;">保存到相册，用支付宝"扫一扫"</div>
       </div>
-      <div style="flex:1;min-width:200px;">
-        <div style="font-size:13px;margin-bottom:6px;opacity:.7;">付费后输入激活码：</div>
-        <div style="display:flex;gap:8px;">
-          <input id="premiumCode" placeholder="DR-XXXX-XXXX-XXXX" style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--panel);color:var(--text);font-size:13px;font-family:monospace;">
-          <span class="btn primary sm" onclick="activatePremium()">激活</span>
+      <div style="flex:1;min-width:240px;">
+        <div style="font-size:13px;margin-bottom:8px;font-weight:600;">① 选择金额：</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;">
+          <span class="btn sm" onclick="setPayAmount(29,this)" style="border-color:var(--accent);">¥29 / 年会员</span>
+          <span class="btn sm" onclick="setPayAmount(50,this)">¥50 / 打赏</span>
+          <span class="btn sm" onclick="setPayAmount(99,this)">¥99 / 大额支持</span>
+          <input id="payCustom" type="number" min="1" placeholder="自定义" oninput="setPayAmount(this.value, null)" style="width:80px;padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:var(--panel);color:var(--text);font-size:13px;">
         </div>
-        <div style="font-size:11px;opacity:.4;margin-top:6px;line-height:1.5;">付费后将收到激活码，输入后即时解锁云端同步（有效期 365 天）。<br>如暂未配置云端，会员开通后配置即自动生效。</div>
+        <div style="font-size:13px;margin-bottom:8px;font-weight:600;">② 付款后请提交订单号：</div>
+        <div style="display:flex;gap:8px;margin-bottom:6px;">
+          <input id="payNote" placeholder="支付宝交易号（24 位数字）或你的 DRSTUDY 账号" style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--panel);color:var(--text);font-size:12px;">
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <div style="font-size:18px;font-weight:700;color:var(--accent);">总计 <span id="payAmountLabel">¥29</span></div>
+          <span class="btn primary" onclick="submitPayment()" style="margin-left:auto;">✓ 我已付款</span>
+        </div>
+        <div style="font-size:11px;opacity:.4;margin-top:10px;line-height:1.6;">
+          ✓ 开发者收到后会人工开通云同步会员（365 天）<br>
+          ✓ 已是会员再付款将自动顺延有效期<br>
+          ✓ 本设备已记录 <b id="localPayCount">0</b> 笔付款 ✓
+        </div>
       </div>
     </div>`;
+  renderPayCount();
 }
 function activatePremium(){
   const code = (document.getElementById('premiumCode')||{}).value || '';
   const c = code.trim();
   if(c.length < 16){ toast('激活码格式不正确（至少 16 位）'); return; }
-  // TODO: 接入云函数真实验证（当前为框架占位：16+ 位激活码即可激活）
+  // 旧版激活码默认按个人高阶版（¥49/月）开通 1 年
   const until = new Date(); until.setFullYear(until.getFullYear()+1);
   DB.settings.premium = true;
   DB.settings.premiumUntil = until.toISOString().slice(0,10);
+  DB.settings.planTier = 'pro';
+  DB.settings.planUntil = until.toISOString().slice(0,10);
   DB.settings.premiumCode = c;
   save();
   renderPremiumStatus();
   renderPremiumAction();
-  track('premium_activate', {code:c.slice(0,4)+'****'});
-  toast('⭐ 会员已开通，云端同步已解锁！');
+  track('premium_activate', {code:c.slice(0,4)+'****', plan:'pro'});
+  toast('⭐ 个人高阶版已开通，云端同步已解锁！');
 }
 function deactivatePremium(){
-  uiConfirm('确认取消会员？取消后云端同步将不可用（本地数据不受影响）。',()=>{
+  uiConfirm('确认退订套餐？退订后将恢复为个人免费版，本地数据保留不受影响。',()=>{
     DB.settings.premium = false;
     DB.settings.premiumUntil = '';
+    DB.settings.planTier = 'free';
+    DB.settings.planUntil = '';
+    DB.settings.planCycle = 'month';
     save();
     renderPremiumStatus();
     renderPremiumAction();
-    track('premium_deactivate');
-    toast('已取消会员');
+    track('plan_deactivate');
+    toast('已退订套餐，恢复为个人免费版');
   });
 }
-/* 装饰性 QR 码图案（替换为真实赞赏码图片即可） */
-function genQRPattern(){
-  let s='';
-  const corner=(x,y)=>`<rect x="${x}" y="${y}" width="22" height="22" fill="#000"/><rect x="${x+4}" y="${y+4}" width="14" height="14" fill="#fff"/><rect x="${x+7}" y="${y+7}" width="8" height="8" fill="#000"/>`;
-  s+=corner(2,2)+corner(76,2)+corner(2,76);
-  let seed=42;
-  const rnd=()=>(seed=(seed*1103515245+12345)&0x7fffffff,seed/0x7fffffff);
-  for(let y=0;y<100;y+=5){for(let x=0;x<100;x+=5){
-    if((x<28&&y<28)||(x>72&&y<28)||(x<28&&y>72))continue;
-    if(rnd()>0.55)s+=`<rect x="${x}" y="${y}" width="4" height="4" fill="#000"/>`;
-  }}
-  return s;
+
+/* ---- 6 套餐商业体系 ---- */
+const PLANS = [
+  {tier:'free',     name:'个人免费版',   icon:'🆓', m:0,    y:0,     tagline:'永久免费 · 本地使用 · 开箱即用',         features:['全部 8 大本地模块（文献/论文/里程碑/实验/导师/活动/待办/简历）','本地多账号管理','数据导入 / 导出备份','单设备离线存储'], color:'#9aa3b2'},
+  {tier:'plus',     name:'个人进阶版',   icon:'🌱', m:19,   y:188,   tagline:'云同步入门 · 适合刚接触云端的同学',     features:['云端自动同步 5 GB','支持 2 台设备同时登录','AI 文献摘要 50 次 / 月','社区技术支持'], color:'#34c759'},
+  {tier:'pro',      name:'个人高阶版',   icon:'⚡', m:49,   y:488,   tagline:'高性价比之选 · 适合多数硕博生',         features:['云端自动同步 30 GB','支持 5 台设备同时登录','AI 文献摘要 200 次 / 月','导师汇报自动导出 PDF','7 天云端回收站','邮件客服（24h 内回复）'], color:'#007aff', recommend:true},
+  {tier:'flagship', name:'个人旗舰版',   icon:'🚀', m:99,   y:988,   tagline:'AI 无限 + 私享专家 · 给重度使用',       features:['云端自动同步 200 GB','支持 10 台设备同时登录','AI 文献摘要无限次','优先人工客服响应（4h 内）','新功能内测通道','年度专家咨询 1 次'], color:'#af52de'},
+  {tier:'team',     name:'团队版',       icon:'👥', m:299,  y:2988,  tagline:'5 席位 · 协作 + 统一管理',              features:['包含 5 个个人高阶版席位','团队协作工作区','统一账单与发票','成员数据隔离','管理员后台 + 角色权限'], color:'#ff9500'},
+  {tier:'enterprise', name:'企业版',     icon:'🏢', m:999,  y:9988,  tagline:'私有部署 · 合规 SLA · 适合科研单位',   features:['无限成员席位','可私有部署 / 混合云 / 国产化适配','数据合规审计日志','专属客户经理 5×8 服务','定制功能开发','企业 SLA 99.9%'], color:'#ff3b30'}
+];
+let PLAN_CYCLE = (DB && DB.settings && DB.settings.planCycle) || 'month'; // month | year
+
+function planByName(tier){ return PLANS.find(p=>p.tier===tier) || PLANS[0]; }
+function priceText(p, cycle){ return cycle==='year' ? ('¥'+p.y+' / 年') : ('¥'+p.m+' / 月'); }
+
+function renderPlansGrid(){
+  const cycle = PLAN_CYCLE;
+  return PLANS.map(p=>{
+    const cur = DB.settings.planTier === p.tier;
+    const isFree = p.tier==='free';
+    const price = isFree ? '永久免费' : (cycle==='year' ? ('¥'+p.y+' / 年') : ('¥'+p.m+' / 月'));
+    const sub = isFree ? '无需付费，即开即用' : (cycle==='year' ? '年付约 8 折 比月付省 17%' : '可随时取消续费');
+    return `
+      <div class="plan-card ${p.recommend?'recommend':''} ${cur?'selected':''}" data-tier="${p.tier}" onclick="pickPlan('${p.tier}')">
+        ${p.recommend?'<div class="plan-tag">推荐</div>':''}
+        <div class="plan-head"><span class="plan-icon">${p.icon}</span><span class="plan-name">${p.name}</span></div>
+        <div class="plan-price" style="color:${cur?p.color:'var(--text)'};">${price}</div>
+        <div class="plan-sub">${sub}</div>
+        <ul class="plan-feats">${p.features.map(f=>'<li>'+f+'</li>').join('')}</ul>
+        ${cur?'<div class="plan-check">✓ 当前套餐</div>':'<div class="plan-act">选择此套餐 →</div>'}
+      </div>`;
+  }).join('');
+}
+
+function renderPremiumAction(){
+  const el = document.getElementById('premiumAction'); if(!el) return;
+
+  // 已是付费会员：显示续费/升级按钮
+  if(checkPremium()){
+    const tier = DB.settings.planTier || 'plus';
+    const p = planByName(tier);
+    el.innerHTML = `
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
+        <span class="btn sm" onclick="showPlanGrid()">查看全部套餐 / 升级</span>
+        <span class="btn sm" onclick="deactivatePremium()" style="opacity:.5;">退订会员</span>
+      </div>
+      <div style="font-size:12px;opacity:.5;line-height:1.6;">已是付费会员，可点上方查看其它套餐升级 / 续费；退订后云同步立即停止（本地数据保留）。</div>`;
+    renderPayCount();
+    return;
+  }
+
+  // 免费用户：6 套餐网格 + 月/年切换 + 付款区
+  el.innerHTML = `
+    <div style="margin-bottom:14px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+        <div style="font-weight:600;font-size:13px;">选择套餐 <span style="opacity:.4;font-weight:400;">（点击卡片切换）</span></div>
+        <div class="cycle-toggle">
+          <span class="${PLAN_CYCLE==='month'?'active':''}" onclick="setPlanCycle('month')">按月</span>
+          <span class="${PLAN_CYCLE==='year'?'active':''}" onclick="setPlanCycle('year')">按年 · 省 17%</span>
+        </div>
+      </div>
+      <div class="plans-grid" id="plansGrid">${renderPlansGrid()}</div>
+    </div>
+    <div id="payArea"></div>`;
+
+  // 默认选中"个人高阶版"（推荐）
+  pickPlan(DB.settings.planTier && DB.settings.planTier!=='free' ? DB.settings.planTier : 'pro');
+  renderPayCount();
+}
+
+function showPlanGrid(){
+  // 强制重置为可选购模式（保留 planTier 以便定位当前）
+  DB.settings.premium = false; DB.settings.premiumUntil = '';
+  DB.settings.planTier = DB.settings.planTier || 'free';
+  save();
+  renderPremiumStatus();
+  renderPremiumAction();
+  setTimeout(()=>document.getElementById('plansGrid') && document.getElementById('plansGrid').scrollIntoView({behavior:'smooth', block:'center'}), 50);
+}
+
+function setPlanCycle(c){
+  PLAN_CYCLE = c;
+  DB.settings.planCycle = c;
+  save();
+  const grid = document.getElementById('plansGrid');
+  if(grid) grid.innerHTML = renderPlansGrid();
+  const sel = DB.settings.planTier && DB.settings.planTier!=='free' ? DB.settings.planTier : 'pro';
+  pickPlan(sel);
+}
+
+function pickPlan(tier){
+  const p = planByName(tier); if(!p) return;
+  // 视觉高亮
+  [...document.querySelectorAll('.plan-card')].forEach(c=>c.classList.toggle('selected', c.dataset.tier===tier));
+  // 临时保存选择
+  DB.settings.planTier = tier;
+  save();
+  const pa = document.getElementById('payArea');
+  if(!pa) return;
+
+  if(p.tier==='free'){
+    pa.innerHTML = '<div style="background:var(--panel2);border-radius:10px;padding:16px;text-align:center;color:var(--muted);font-size:13px;line-height:1.7;">🆓 个人免费版无需付款<br>所有本地功能立即可用，可扫码下方赞赏码自愿支持开发者</div>';
+    renderPayCount(); return;
+  }
+  const cycle = PLAN_CYCLE;
+  const price = cycle==='year' ? p.y : p.m;
+  const cycleLabel = cycle==='year' ? '年付' : '月付';
+  const saveAmt = cycle==='year' ? ('比月付节省 ¥'+(p.m*12 - p.y)) : '';
+  pa.innerHTML = `
+    <div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap;background:var(--panel2);border-radius:12px;padding:14px;">
+      <div style="text-align:center;flex-shrink:0;">
+        <img src="alipay-qr.jpg" alt="支付宝收款码" style="width:160px;height:auto;background:#fff;border-radius:12px;padding:6px;display:block;border:1px solid var(--border);">
+        <div style="font-size:11px;opacity:.6;margin-top:6px;">📱 支付宝扫码付款</div>
+      </div>
+      <div style="flex:1;min-width:240px;">
+        <div style="font-weight:600;font-size:15px;margin-bottom:4px;">${p.icon} ${p.name} <span style="opacity:.5;font-size:12px;">· ${cycleLabel}${p.recommend?' · 推荐':''}</span></div>
+        <div style="font-size:12px;opacity:.6;margin-bottom:12px;">${p.tagline}</div>
+        <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:4px;">
+          <div style="font-size:13px;color:var(--muted);">应付金额：</div>
+          <div style="font-size:26px;font-weight:700;color:${p.color};" id="payAmountLabel">¥${price}</div>
+          <div style="font-size:11px;opacity:.4;">/ ${cycle==='year'?'年':'月'}</div>
+        </div>
+        ${saveAmt?('<div style="font-size:11px;color:'+p.color+';opacity:.75;margin-bottom:10px;">💰 '+saveAmt+'</div>'):'<div style="margin-bottom:6px;"></div>'}
+        <div style="font-size:13px;margin-bottom:6px;font-weight:600;">① 付款后请提交订单信息：</div>
+        <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
+          <input id="payAccount" placeholder="DRSTUDY 账号（必填 · 用于开通会员）" style="flex:1;min-width:200px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--panel);color:var(--text);font-size:12px;">
+          <input id="payNote" placeholder="支付宝交易号（24 位）" style="flex:1;min-width:200px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--panel);color:var(--text);font-size:12px;">
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap;">
+          <span style="font-size:12px;opacity:.5;">本设备已记录 <b id="localPayCount">0</b> 笔付款</span>
+          <span class="btn primary" onclick="submitPayment()" style="margin-left:auto;font-weight:600;padding:10px 18px;">✓ 我已付款 · 开通套餐</span>
+        </div>
+        <div style="font-size:11px;opacity:.45;line-height:1.7;border-top:1px dashed var(--border);padding-top:8px;">
+          ✓ 开发者确认收款后 24h 内人工开通 / 升级套餐<br>
+          ✓ 已是会员续费将自动顺延有效期<br>
+          ✓ 企业版 / 团队版需要发票请直接联系 hello@drstudy.cn
+        </div>
+      </div>
+    </div>`;
+  renderPayCount();
+}
+
+function selectedPlan(){
+  const sel = document.querySelector('.plan-card.selected');
+  const tier = sel ? sel.dataset.tier : (DB.settings.planTier || 'pro');
+  return planByName(tier);
+}
+
+function submitPayment(){
+  const noteEl = document.getElementById('payNote');
+  const amountEl = document.getElementById('payAmountLabel');
+  const accountEl = document.getElementById('payAccount');
+  if(!noteEl || !amountEl){ toast('请先选择套餐'); return; }
+  const plan = selectedPlan();
+  if(plan.tier==='free'){ toast('免费版无需付款'); return; }
+  const note = (noteEl.value||'').trim();
+  const account = (accountEl && accountEl.value || '').trim() || (CUR ? (CUR.account||CUR.id||'') : '');
+  const amount = parseFloat((amountEl.textContent||'').replace(/[^\d.]/g,'')) || 0;
+  if(!account){ toast('请填写 DRSTUDY 账号（用于开通会员）'); accountEl && accountEl.focus(); return; }
+  if(!note){ toast('请填写支付宝交易号或付款备注'); noteEl.focus(); return; }
+  if(!amount || amount<=0){ toast('应付金额异常，请检查套餐'); return; }
+
+  // 本地付款日志
+  const log = getPayLog();
+  log.push({ts: now(), amount, note, account, plan: plan.tier, cycle: PLAN_CYCLE, planName: plan.name});
+  localStorage.setItem('drbuddy_pay_log', JSON.stringify(log));
+  track('payment_submitted', {plan: plan.tier, cycle: PLAN_CYCLE, amount, accountLen: account.length});
+
+  noteEl.value = '';
+  if(accountEl) accountEl.value = '';
+  const cnt = document.getElementById('localPayCount');
+  if(cnt) cnt.textContent = log.length;
+
+  // 上报云端
+  if(CB && CB.on){
+    cbCall({action:'recordPay', amount, note, account, plan: plan.tier, cycle: PLAN_CYCLE, planName: plan.name})
+      .then(r=>{ toast(r && r.ok ? ('✅ 已收到 '+plan.name+' 申请，云端订单 #'+r.id+'，开发者收到款后将开通') : '✅ 已本地记录，开发者收到款后将开通 '+plan.name); })
+      .catch(()=>{ toast('✅ 已本地记录，开发者收到款后将开通 '+plan.name); });
+  } else {
+    toast('✅ 已本地记录，开发者收到支付宝通知后将开通 '+plan.name);
+  }
+}
+
+function getPayLog(){
+  try{ return JSON.parse(localStorage.getItem('drbuddy_pay_log')||'[]'); }catch(e){ return []; }
+}
+function renderPayCount(){
+  const el = document.getElementById('localPayCount');
+  if(!el) return;
+  const me = CUR ? CUR.id : 'guest';
+  const others = getPayLog().filter(x => !x.account || x.account !== me).length;
+  el.textContent = others;
 }
 function saveProfile(){ DB.profile={degree:val('pf_degree'),name:val('pf_name').trim(),school:val('pf_school').trim(),major:val('pf_major').trim(),advisor:val('pf_advisor').trim(),enrollYear:val('pf_ey').trim(),targetYear:val('pf_ty').trim(),avatar:DB.profile.avatar||'',bio:val('pf_bio').trim()}; save(); toast('已保存'); socSyncProfile(); }
 function dataExport(){
@@ -2784,8 +3015,20 @@ const __wxCode = (location.search.match(/[?&]code=([^&]+)/)||[])[1];
 if(__wxCode){ history.replaceState(null,'',location.pathname); wxCallback(__wxCode); }
 // 云端同步初始化（cloud-config.js 未配置环境 ID 时为纯本地模式）
 cloudInit();
-// PWA Service Worker 注册（本地文件打开时静默失败，不影响使用）
-if('serviceWorker' in navigator && location.protocol.startsWith('http')){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
+// PWA Service Worker：仅网页版（drstudy.cn 等公网域名）注册；
+// 桌面 exe（127.0.0.1 本地服务）必须禁用——SW 会缓存旧版页面导致 exe 更新后仍运行旧代码（历史上曾导致文献页全黑）。
+if('serviceWorker' in navigator && location.protocol.startsWith('http')){
+  if(location.hostname==='127.0.0.1' || location.hostname==='localhost' || location.hostname==='0.0.0.0'){
+    navigator.serviceWorker.getRegistrations().then(function(rs){
+      rs.forEach(function(r){ r.unregister(); });
+    }).catch(function(){});
+    if(window.caches && caches.keys){
+      caches.keys().then(function(ks){ ks.forEach(function(k){ caches.delete(k); }); }).catch(function(){});
+    }
+  }else{
+    navigator.serviceWorker.register('sw.js').catch(function(){});
+  }
+}
 </script>
 </body>
 </html>
