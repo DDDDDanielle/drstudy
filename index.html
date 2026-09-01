@@ -1985,18 +1985,19 @@ function activatePremium(){
   const code = (document.getElementById('premiumCode')||{}).value || '';
   const c = code.trim();
   if(c.length < 16){ toast('激活码格式不正确（至少 16 位）'); return; }
-  // 旧版激活码默认按个人高阶版（¥49/月）开通 1 年
+  // 激活码默认按个人高阶版（¥49/月）开通 1 年
   const until = new Date(); until.setFullYear(until.getFullYear()+1);
   DB.settings.premium = true;
   DB.settings.premiumUntil = until.toISOString().slice(0,10);
   DB.settings.planTier = 'pro';
+  DB.settings.planCycle = 'year';
   DB.settings.planUntil = until.toISOString().slice(0,10);
   DB.settings.premiumCode = c;
   save();
   renderPremiumStatus();
   renderPremiumAction();
   track('premium_activate', {code:c.slice(0,4)+'****', plan:'pro'});
-  toast('⭐ 个人高阶版已开通，云端同步已解锁！');
+  toast('⭐ 个人高阶版已开通（至 '+until.toISOString().slice(0,10)+'），云端同步已解锁！');
 }
 function deactivatePremium(){
   uiConfirm('确认退订套餐？退订后将恢复为个人免费版，本地数据保留不受影响。',()=>{
@@ -2075,7 +2076,15 @@ function renderPremiumAction(){
       </div>
       <div class="plans-grid" id="plansGrid">${renderPlansGrid()}</div>
     </div>
-    <div id="payArea"></div>`;
+    <div id="payArea"></div>
+    <div style="margin-top:14px;border-top:1px dashed var(--border);padding-top:12px;">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <span style="font-size:12px;opacity:.6;">🎁 已有激活码？</span>
+        <input id="premiumCode" placeholder="输入激活码（16 位以上）" style="flex:1;min-width:180px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--panel);color:var(--text);font-size:12px;" onkeydown="if(event.key==='Enter')activatePremium()">
+        <span class="btn sm" onclick="activatePremium()">兑换</span>
+      </div>
+      <div style="font-size:11px;opacity:.4;margin-top:6px;">兑换后按个人高阶版开通 365 天，云端同步立即解锁</div>
+    </div>`;
 
   // 默认选中"个人高阶版"（推荐）
   pickPlan(DB.settings.planTier && DB.settings.planTier!=='free' ? DB.settings.planTier : 'pro');
