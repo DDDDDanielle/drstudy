@@ -1,4 +1,4 @@
-const CACHE = 'drstudy-v22';
+const CACHE = 'drstudy-v23';
 const ASSETS = ['./', './index.html', './cloud-config.js', './manifest.json', './icon-192.png', './icon-512.png', './apple-touch-icon-180.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
