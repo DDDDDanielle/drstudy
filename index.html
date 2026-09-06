@@ -171,6 +171,58 @@ tr:hover td{background:#242c46;}
 .todo-item.done{opacity:.5;}
 .todo-item.done .tt{text-decoration:line-through;}
 .todo-item.overdue{border-color:var(--danger);}
+/* 每日清单 - 日期导航 */
+.day-nav{display:flex;align-items:center;justify-content:space-between;
+  background:linear-gradient(120deg,var(--panel2),var(--panel));
+  border:1px solid var(--border);border-radius:12px;padding:14px 22px;margin:14px 0;}
+.day-prev,.day-next{cursor:pointer;color:var(--accent);font-size:14px;
+  padding:6px 14px;border-radius:8px;transition:background .15s;user-select:none;}
+.day-prev:hover,.day-next:hover{background:var(--panel2);}
+.day-title{text-align:center;}
+.day-big{font-family:KaiTi,"STKaiti";font-size:24px;letter-spacing:.04em;}
+.day-dow{font-size:13px;color:var(--muted);margin-left:6px;}
+/* 7天打卡条 + 连续天数 */
+.day-strip{display:flex;gap:8px;align-items:center;
+  background:var(--panel);border:1px solid var(--border);border-radius:12px;
+  padding:10px 14px;margin:8px 0 14px;flex-wrap:wrap;}
+.day-streak{display:flex;align-items:baseline;gap:4px;padding-right:14px;
+  border-right:1px solid var(--border);margin-right:6px;}
+.day-streak .flame{font-size:18px;}
+.day-streak .num{font-family:KaiTi,"STKaiti";font-size:22px;color:#e87a3c;font-weight:700;}
+.day-streak .lbl{font-size:11px;color:var(--muted);}
+.day-cell{flex:1;min-width:54px;text-align:center;padding:8px 6px;border-radius:8px;
+  cursor:pointer;transition:all .15s;border:1.5px solid transparent;}
+.day-cell:hover{background:var(--panel2);}
+.day-cell.on{background:var(--panel2);border-color:var(--accent);}
+.day-cell.today .d{color:var(--accent);font-weight:700;}
+.day-cell.future .d,.day-cell.future .dw,.day-cell.future .dots{opacity:.45;}
+.day-cell .d{font-size:14px;font-weight:600;}
+.day-cell .dw{font-size:11px;color:var(--muted);margin:1px 0 4px;}
+.day-cell .dots{display:flex;gap:2px;justify-content:center;min-height:7px;align-items:center;}
+.day-cell .dots .dot{width:5px;height:5px;border-radius:50%;background:var(--border);}
+.day-cell .dots .dot.fill{background:var(--accent);}
+.day-cell .dots .done{color:#3f9d6e;font-size:13px;line-height:1;}
+/* 进度条 */
+.day-progress{display:flex;align-items:center;gap:14px;margin:10px 0;}
+.day-prog-bar{flex:1;height:8px;background:var(--panel2);border-radius:99px;overflow:hidden;}
+.day-prog-fill{height:100%;background:linear-gradient(90deg,var(--accent),#3f9d6e);transition:width .4s;border-radius:99px;}
+.day-progress span{font-size:13px;color:var(--muted);min-width:120px;text-align:right;}
+/* 快速添加 */
+.day-quickadd{display:flex;gap:8px;margin:12px 0;flex-wrap:wrap;}
+.day-quickadd input[type=text]{flex:1;min-width:200px;padding:10px 14px;border-radius:10px;
+  border:1.5px solid var(--border);background:var(--panel);color:var(--text);font-family:inherit;font-size:14px;}
+.day-quickadd input:focus{outline:none;border-color:var(--accent);}
+.day-pri-sel{padding:10px;border-radius:10px;border:1.5px solid var(--border);
+  background:var(--panel);color:var(--text);font-family:inherit;}
+/* 逾期遗留 */
+.day-overdue{background:rgba(192,57,43,.06);
+  border:1px dashed var(--danger);border-radius:12px;
+  padding:14px 18px;margin:14px 0;}
+.day-overdue .head{font-weight:600;color:var(--danger);margin-bottom:8px;font-size:14px;}
+/* 列表标题 */
+.lst-h{font-size:16px;color:var(--text);margin:18px 0 8px;font-weight:600;}
+.lst-h small{font-weight:400;color:var(--muted);font-size:13px;margin-left:6px;}
+
 .ck{width:17px;height:17px;cursor:pointer;accent-color:var(--accent2);flex-shrink:0;}
 .tt{flex:1;font-size:13.5px;}
 .tt small{display:block;color:var(--muted);font-size:11.5px;margin-top:2px;}
@@ -1686,24 +1738,191 @@ function acSave(id){
 function acDel(id){uiConfirm('删除该活动记录？',()=>{DB.academic=DB.academic.filter(x=>x.id!==id);save();closeModal();pages.academic();toast('已删除');});}
 
 /* ============================================================
-   8. 待办中心（GTD式）
+   8. 每日清单 (Daily-first) + GTD 视图（保留）
    ============================================================ */
 pages.todo = function(){
+  // 默认视图日期：今日
+  if(!pages.todo._d) pages.todo._d = today();
+  const viewDate = pages.todo._d;
+  const isToday = viewDate === today();
   const f = pages.todo._f || 'all';
-  let list = DB.todos;
-  if(f!=='all') list = list.filter(t=>t.status===f);
-  list = list.sort((a,b)=>(a.done-b.done)||(a.priority==='紧急'?0:1)-(b.priority==='紧急'?0:1)||(a.due||'z').localeCompare(b.due||'z'));
-  const counts = {all:DB.todos.filter(t=>!t.done).length,inbox:DB.todos.filter(t=>t.status==='inbox'&&!t.done).length,next:DB.todos.filter(t=>t.status==='next'&&!t.done).length,project:DB.todos.filter(t=>t.status==='project'&&!t.done).length,waiting:DB.todos.filter(t=>t.status==='waiting'&&!t.done).length,someday:DB.todos.filter(t=>t.status==='someday').length};
+  const dt = new Date(viewDate+'T00:00:00');
+  const dowMap = ['日','一','二','三','四','五','六'];
+  const dowStr = '周'+dowMap[dt.getDay()];
+  const dtFmt = (dt.getMonth()+1)+'月'+dt.getDate()+'日';
+
+  // 当天任务：due 命中；或今日新增且无 due
+  const dayTasks = DB.todos.filter(t=>{
+    if(t.due === viewDate) return true;
+    if(!t.due && isToday && t.createdAt && t.createdAt.slice(0,10)===today()) return true;
+    return false;
+  });
+  dayTasks.sort((a,b)=>(a.done?1:0)-(b.done?1:0)||(a.priority==='紧急'?0:1)-(b.priority==='紧急'?0:1)||(a.due||'z').localeCompare(b.due||'z'));
+
+  // 逾期遗留（仅今日视图展示）
+  const overdue = isToday ? DB.todos.filter(t=>!t.done && t.due && t.due < viewDate) : [];
+
+  const completed = dayTasks.filter(t=>t.done).length;
+  const pct = dayTasks.length ? Math.round(completed/dayTasks.length*100) : 0;
+
+  // 过去 7 天迷你日历
+  const strip = [...Array(7)].map((_,i)=>{
+    const d = new Date(dt); d.setDate(dt.getDate()-(6-i));
+    const ds = d.toISOString().slice(0,10);
+    const items = DB.todos.filter(t=>t.due===ds);
+    const done = items.filter(t=>t.done).length;
+    return {
+      date: ds, label:(d.getMonth()+1)+'/'+d.getDate(), dow:dowMap[d.getDay()],
+      isToday: ds===today(), isSelected: ds===viewDate, isFuture: ds>today(),
+      count: items.length, done, allDone: items.length>0 && done===items.length
+    };
+  });
+
+  // 连续完成天数
+  let streak = 0;
+  for(let i=0;i<365;i++){
+    const d = new Date(); d.setDate(d.getDate()-i);
+    const ds = d.toISOString().slice(0,10);
+    const items = DB.todos.filter(t=>t.due===ds);
+    if(items.length===0){ if(i===0) continue; break; }
+    if(items.every(t=>t.done)) streak++;
+    else break;
+  }
+
+  const dateNav = `
+    <div class="day-nav">
+      <span class="day-prev" onclick="tdPrevDay()">◀ 昨天</span>
+      <div class="day-title">
+        <span class="day-big">${dtFmt}</span>
+        <span class="day-dow">${dowStr}${isToday?' · 今天':''}</span>
+      </div>
+      <span class="day-next" onclick="tdNextDay()">明天 ▶</span>
+    </div>`;
+
+  const weekStrip = `
+    <div class="day-strip">
+      <div class="day-streak" title="连续完成所有清单的天数">
+        <span class="flame">🔥</span>
+        <span class="num">${streak}</span>
+        <span class="lbl">天连续</span>
+      </div>
+      ${strip.map(d=>{
+        const dots = d.count===0 ? '<span style="opacity:.3">·</span>'
+                    : d.allDone ? '<span class="done">✓</span>'
+                    : Array(Math.min(d.count,4)).fill(0).map((_,i)=>`<span class="dot ${i<d.done?'fill':''}"></span>`).join('');
+        return `<div class="day-cell ${d.isSelected?'on':''} ${d.isToday?'today':''} ${d.isFuture?'future':''}" onclick="tdGoDay('${d.date}')" title="${d.date} ${d.count?d.done+'/'+d.count+' 已完成':''}">
+          <div class="d">${d.label}</div>
+          <div class="dw">${d.dow}</div>
+          <div class="dots">${dots}</div>
+        </div>`;
+      }).join('')}
+    </div>`;
+
+  const progress = `
+    <div class="day-progress">
+      <div class="day-prog-bar"><div class="day-prog-fill" style="width:${pct}%"></div></div>
+      <span>${completed}/${dayTasks.length} · ${pct}%${pct===100 && dayTasks.length?' · 🎉 完成！':''}</span>
+    </div>`;
+
+  const quickAdd = `
+    <div class="day-quickadd">
+      <input type="text" id="dayInput" placeholder="+ ${isToday?'今天':'这天'}要做的事，回车添加" onkeydown="if(event.key==='Enter'){event.preventDefault();tdQuickAdd()}">
+      <select id="dayPri" class="day-pri-sel"><option value="中">普通</option><option value="高">重要</option><option value="紧急">紧急</option><option value="低">稍后</option></select>
+      <span class="btn primary sm" onclick="tdQuickAdd()">添加</span>
+    </div>`;
+
+  const overdueHTML = overdue.length ? `
+    <div class="day-overdue">
+      <div class="head">⏰ 来自前几天的遗留任务（${overdue.length} 项）</div>
+      ${renderTodoList(overdue,'todo')}
+      <div style="text-align:right;padding:8px 0 0;">
+        <span class="btn sm" onclick="tdCarryAll()">→ 全部移到今日</span>
+      </div>
+    </div>` : '';
+
+  const dayListHTML = dayTasks.length ? renderTodoList(dayTasks,'todo') : '<div class="empty" style="padding:30px;">今天清单是空的，添加第一个目标开始吧 🚀</div>';
+
+  const chipsHTML = `
+    <div class="filter-row" style="margin-top:22px;">
+      ${[['all','全部'],['inbox','收件箱'],['next','下一步'],['project','项目'],['waiting','等待'],['someday','将来/也许']].map(([k,n])=>{
+        const cnt = k==='all' ? DB.todos.filter(t=>!t.done).length
+                              : (k==='someday' ? DB.todos.filter(t=>t.status==='someday').length
+                                                : DB.todos.filter(t=>t.status===k && !t.done).length);
+        return `<span class="chip ${f===k?'on':''}" onclick="setTodoF('${k}')">${n}${cnt?'('+cnt+')':''}</span>`;
+      }).join('')}
+      <span class="btn primary sm" style="margin-left:auto;" onclick="tdModal()">+ 详细添加</span>
+    </div>`;
+
+  let fullListHTML = '';
+  if(f==='all'){
+    const others = DB.todos.filter(t=>!t.done && t.due !== viewDate && !overdue.includes(t))
+                            .sort((a,b)=>(a.priority==='紧急'?0:1)-(b.priority==='紧急'?0:1));
+    if(others.length){
+      fullListHTML = `<div class="lst-h">📦 其他日期待办（${others.length}）<small>不是今天也不在视图日期</small></div>${renderTodoList(others,'todo')}`;
+    }
+  } else {
+    const filt = f==='someday' ? DB.todos.filter(t=>t.status==='someday')
+                                : DB.todos.filter(t=>t.status===f && !t.done);
+    const labelMap = {inbox:'收件箱',next:'下一步',project:'项目',waiting:'等待',someday:'将来/也许'};
+    fullListHTML = `<div class="lst-h">🗂 ${labelMap[f]||'全部'}（${filt.length}）<small>按 GTD 流筛选</small></div>${filt.length?renderTodoList(filt,'todo'):'<div class="empty">该视图下暂无任务</div>'}`;
+  }
+
   document.getElementById('pg-todo').innerHTML = `
-    <h2>☑ 待办中心 <span class="sub">GTD 任务流 · 收件箱→下一步→项目</span></h2>
-    <div class="filter-row">
-      ${[['all','全部'],['inbox','收件箱'],['next','下一步'],['project','项目'],['waiting','等待'],['someday','将来/也许']].map(([k,n])=>`<span class="chip ${f===k?'on':''}" onclick="setTodoF('${k}')">${n}${counts[k]?'('+counts[k]+')':''}</span>`).join('')}
-      <span class="btn primary sm" style="margin-left:auto;" onclick="tdModal()">+ 添加待办</span>
-    </div>
-    ${renderTodoList(list,'todo')}
+    <h2>📅 每日清单 <span class="sub">日拱一卒 · 不期速成</span></h2>
+    ${dateNav}
+    ${weekStrip}
+    ${progress}
+    ${quickAdd}
+    ${overdueHTML}
+    <div class="lst-h">📌 ${isToday?'今日':dtFmt}的清单（${dayTasks.length}）<small>勾选即完成</small></div>
+    ${dayListHTML}
+    ${chipsHTML}
+    ${fullListHTML}
   `;
+  applyResp();
 };
 function setTodoF(f){pages.todo._f=f;pages.todo();}
+function tdPrevDay(){
+  const d = new Date(pages.todo._d || today());
+  d.setDate(d.getDate()-1);
+  pages.todo._d = d.toISOString().slice(0,10);
+  pages.todo();
+}
+function tdNextDay(){
+  const d = new Date(pages.todo._d || today());
+  d.setDate(d.getDate()+1);
+  pages.todo._d = d.toISOString().slice(0,10);
+  pages.todo();
+}
+function tdGoDay(ds){pages.todo._d=ds;pages.todo();}
+function tdQuickAdd(){
+  const inp = document.getElementById('dayInput');
+  const pri = document.getElementById('dayPri');
+  if(!inp) return;
+  const text = inp.value.trim();
+  if(!text){toast('请输入任务内容');return;}
+  const due = pages.todo._d || today();
+  DB.todos.push({
+    id: uid(), text, project:'', context:'',
+    status: due===today()?'next':'someday',
+    priority: pri?pri.value:'中',
+    due, done:false, createdAt: now()
+  });
+  save(); pages.todo(); updateBadges();
+  inp.value=''; inp.focus();
+  track('todo_add',{via:'quick'});
+  toast('已添加 ✓');
+}
+function tdCarryAll(){
+  const viewDate = pages.todo._d || today();
+  const list = DB.todos.filter(t=>!t.done && t.due && t.due < viewDate);
+  if(!list.length) return;
+  uiConfirm(`将 ${list.length} 项遗留任务全部移到今日？`,()=>{
+    list.forEach(t=>{ t.due = viewDate; });
+    save(); pages.todo(); updateBadges();
+    toast(`已迁移 ${list.length} 项到 ${viewDate}`);
+  });
+}
 function renderTodoList(list,ctx){
   if(!list.length) return '<div class="empty">暂无待办</div>';
   return list.map(t=>{
