@@ -981,6 +981,10 @@ function litNorm(l){
     year: l.year||'',
     venue: l.venue||'',
     doi: l.doi||'',
+    type: l.type || '',
+    vol: l.vol || '',
+    issue: l.issue || '',
+    pages: l.pages || '',
     tags: Array.isArray(l.tags)? l.tags : [],
     status: l.status||'待读',
     rating: parseInt(l.rating)||0,
@@ -1012,7 +1016,8 @@ pages.literature = function(){
             <div class="lm">${esc(l.authors)} · ${esc(l.venue)} · ${l.year||''} ${l.doi?'· DOI: '+esc(l.doi):''}</div>
           </div>
           <div>
-            <span class="btn sm" title="复制 BibTeX 引用" style="margin-right:8px;padding:2px 9px;font-size:12px;" onclick="event.stopPropagation();litCopyBib('${l.id}')">⧉ BibTeX</span>
+            <span class="btn sm" title="按 GB/T 7714-2025 / APA / 自定义格式引用" style="margin-right:6px;padding:2px 9px;font-size:12px;" onclick="event.stopPropagation();litCiteModal('${l.id}')">⧉ 引用</span>
+            <span class="btn sm" title="复制 BibTeX 引用" style="padding:2px 9px;font-size:12px;" onclick="event.stopPropagation();litCopyBib('${l.id}')">⧉ BibTeX</span>
             <span class="tag ${litStatusTag(l.status)}">${esc(l.status)}</span>
             ${l.rating? '★'.repeat(l.rating):''}
           </div>
@@ -1029,7 +1034,9 @@ function setLitFilter(f){ pages.literature._f=f; pages.literature(); }
 function setLitSearch(s){ pages.literature._s=s; pages.literature(); }
 
 function litModal(id){
-  const l = (id? DB.literature.find(x=>x.id===id) : null) || {id:'',title:'',authors:'',year:'',venue:'',doi:'',tags:[],status:'待读',rating:0,notes:'',keyPoints:[]};
+  const l = (id? DB.literature.find(x=>x.id===id) : null) || {id:'',title:'',authors:'',year:'',venue:'',doi:'',type:'',vol:'',issue:'',pages:'',tags:[],status:'待读',rating:0,notes:'',keyPoints:[]};
+  const LIT_TYPE_NAMES = {journal:'期刊论文', conference:'会议论文', thesis:'学位论文', book:'图书/专著', report:'报告', web:'网络资源'};
+  const curType = l.type || (litIsConference(l) ? 'conference' : 'journal');
   openModal(`
     <h3>${id?'编辑文献':'添加文献'} <span class="close" onclick="closeModal()">✕</span></h3>
     <div class="form-grid">
@@ -1038,6 +1045,10 @@ function litModal(id){
       <div class="fg"><label>年份</label><input id="lf_year" value="${esc(l.year)}" placeholder="2024"></div>
       <div class="fg"><label>期刊/会议</label><input id="lf_venue" value="${esc(l.venue)}" placeholder="Nature Energy"></div>
       <div class="fg"><label>DOI</label><input id="lf_doi" value="${esc(l.doi)}" placeholder="10.xxxx/xxxx"></div>
+      <div class="fg"><label>文献类型</label><select id="lf_type">${Object.keys(LIT_TYPE_NAMES).map(t=>`<option value="${t}" ${curType===t?'selected':''}>${LIT_TYPE_NAMES[t]}</option>`).join('')}</select></div>
+      <div class="fg"><label>卷</label><input id="lf_vol" value="${esc(l.vol)}" placeholder="12"></div>
+      <div class="fg"><label>期</label><input id="lf_issue" value="${esc(l.issue)}" placeholder="3"></div>
+      <div class="fg"><label>页码</label><input id="lf_pages" value="${esc(l.pages)}" placeholder="45-60"></div>
       <div class="fg"><label>状态</label><select id="lf_status">${['待读','在读','已读','已整理'].map(s=>`<option ${l.status===s?'selected':''}>${s}</option>`).join('')}</select></div>
       <div class="fg"><label>评分（1-5）</label><input id="lf_rating" type="number" min="0" max="5" value="${l.rating||0}"></div>
       <div class="fg full"><label>标签（逗号分隔）</label><input id="lf_tags" value="${esc((l.tags||[]).join(', '))}" placeholder="热舒适, 现场实测"></div>
@@ -1055,6 +1066,7 @@ function litSave(id){
   const obj = {
     title: val('lf_title').trim(), authors: val('lf_authors').trim(), year: val('lf_year').trim(),
     venue: val('lf_venue').trim(), doi: val('lf_doi').trim(),
+    type: val('lf_type'), vol: val('lf_vol').trim(), issue: val('lf_issue').trim(), pages: val('lf_pages').trim(),
     status: val('lf_status'), rating: parseInt(val('lf_rating'))||0,
     tags: val('lf_tags').split(',').map(s=>s.trim()).filter(Boolean),
     keyPoints: val('lf_kp').split('\n').map(s=>s.trim()).filter(Boolean),
@@ -1113,6 +1125,9 @@ function litToBibtex(list){
     f.push('title   = {'+bibEsc(l.title)+'}');
     if(l.venue) f.push((conf?'booktitle':'journal')+' = {'+bibEsc(l.venue)+'}');
     if(l.year) f.push('year    = {'+bibEsc(l.year)+'}');
+    if(l.vol) f.push('volume  = {'+bibEsc(l.vol)+'}');
+    if(l.issue) f.push('number  = {'+bibEsc(l.issue)+'}');
+    if(l.pages) f.push('pages   = {'+bibEsc(String(l.pages).replace(/\s*[-–]\s*/g,'--'))+'}');
     if(l.doi) f.push('doi     = {'+bibEsc(l.doi)+'}');
     if(l.tags&&l.tags.length) f.push('keywords= {'+l.tags.join(', ')+'}');
     if(l.notes) f.push('note    = {'+bibEsc(l.notes).replace(/[\r\n]+/g,' ')+'}');
@@ -1128,6 +1143,13 @@ function litToRis(list){
     r.push('TI  - '+(l.title||''));
     if(l.venue) r.push((conf?'T2  - ':'JO  - ')+l.venue);
     if(l.year) r.push('PY  - '+l.year);
+    if(l.vol) r.push('VL  - '+l.vol);
+    if(l.issue) r.push('IS  - '+l.issue);
+    if(l.pages){
+      const pm = String(l.pages).match(/(\d+)\s*[-–]\s*(\d+)/);
+      if(pm){ r.push('SP  - '+pm[1]); r.push('EP  - '+pm[2]); }
+      else r.push('SP  - '+l.pages);
+    }
     if(l.doi) r.push('DO  - '+l.doi);
     (l.tags||[]).forEach(t=>r.push('KW  - '+t));
     if(l.notes) r.push('N2  - '+String(l.notes).replace(/[\r\n]+/g,' '));
@@ -1140,17 +1162,17 @@ function litToEndnoteXml(list){
     const conf = litIsConference(l);
     const authors = litSplitAuthors(l.authors).map(a=>'        <author>'+xmlEsc(a)+'</author>').join('\n');
     const kw = (l.tags||[]).map(t=>'        <keyword>'+xmlEsc(t)+'</keyword>').join('\n');
-    return '    <record>\n      <database name="DRSTUDY Literature Library">drstudy.literature</database>\n      <source-app name="DRSTUDY" version="1.0">DRSTUDY</source-app>\n      <ref-type>'+(conf?'10':'17')+'</ref-type>\n      <contributors>\n        <authors>\n'+authors+'\n        </authors>\n      </contributors>\n      <titles>\n        <title>'+xmlEsc(l.title)+'</title>\n      </titles>\n'+(l.venue?'      <periodical><full-title>'+xmlEsc(l.venue)+'</full-title></periodical>\n':'')+(l.year?'      <dates><year>'+xmlEsc(l.year)+'</year></dates>\n':'')+(l.doi?'      <electronic-resource-num>'+xmlEsc(l.doi)+'</electronic-resource-num>\n':'')+(kw?'      <keywords>\n'+kw+'\n      </keywords>\n':'')+(l.notes?'      <notes>'+xmlEsc(l.notes)+'</notes>\n':'')+'    </record>';
+    return '    <record>\n      <database name="DRSTUDY Literature Library">drstudy.literature</database>\n      <source-app name="DRSTUDY" version="1.0">DRSTUDY</source-app>\n      <ref-type>'+(conf?'10':'17')+'</ref-type>\n      <contributors>\n        <authors>\n'+authors+'\n        </authors>\n      </contributors>\n      <titles>\n        <title>'+xmlEsc(l.title)+'</title>\n      </titles>\n'+(l.venue?'      <periodical><full-title>'+xmlEsc(l.venue)+'</full-title></periodical>\n':'')+(l.vol?'      <volume>'+xmlEsc(l.vol)+'</volume>\n':'')+(l.issue?'      <number>'+xmlEsc(l.issue)+'</number>\n':'')+(l.pages?'      <pages>'+xmlEsc(l.pages)+'</pages>\n':'')+(l.year?'      <dates><year>'+xmlEsc(l.year)+'</year></dates>\n':'')+(l.doi?'      <electronic-resource-num>'+xmlEsc(l.doi)+'</electronic-resource-num>\n':'')+(kw?'      <keywords>\n'+kw+'\n      </keywords>\n':'')+(l.notes?'      <notes>'+xmlEsc(l.notes)+'</notes>\n':'')+'    </record>';
   }).join('\n');
   return '<?xml version="1.0" encoding="UTF-8"?>\n<xml data-source="DRSTUDY">\n  <records>\n'+recs+'\n  </records>\n</xml>';
 }
 function litToCsv(list){
-  const headers = ['标题','作者','年份','期刊/会议','DOI','状态','评分','标签','关键观点','笔记','添加时间'];
+  const headers = ['标题','作者','年份','期刊/会议','DOI','类型','卷','期','页码','状态','评分','标签','关键观点','笔记','添加时间'];
   const q = v=>{
     v = String(v==null?'':v).replace(/\r?\n/g,' ');
     return /[",]/.test(v)? '"'+v.replace(/"/g,'""')+'"' : v;
   };
-  const rows = list.map(l=>[l.title,l.authors,l.year,l.venue,l.doi,l.status,l.rating,(l.tags||[]).join('; '),(l.keyPoints||[]).join(' | '),l.notes,(l.addedAt||'')].map(q).join(','));
+  const rows = list.map(l=>[l.title,l.authors,l.year,l.venue,l.doi,litTypeName(l),l.vol||'',l.issue||'',l.pages||'',l.status,l.rating,(l.tags||[]).join('; '),(l.keyPoints||[]).join(' | '),l.notes,(l.addedAt||'')].map(q).join(','));
   return '\ufeff'+headers.join(',')+'\n'+rows.join('\r\n');
 }
 function litExportModal(){
@@ -1218,6 +1240,232 @@ function litCopyBib(id){
   if(navigator.clipboard && navigator.clipboard.writeText){
     navigator.clipboard.writeText(bib).then(done).catch(fb);
   } else fb();
+}
+
+/* ============================================================
+   2.5b 参考文献引用（GB/T 7714-2025 / APA 7 / MLA 9 / 自定义）
+   ============================================================ */
+function litTypeOf(l){ return l.type || (litIsConference(l) ? 'conference' : 'journal'); }
+function litTypeTag(l){ return ({journal:'J',conference:'C',thesis:'D',book:'M',report:'R',web:'EB/OL'})[litTypeOf(l)] || 'J'; }
+function litTypeName(l){ return ({journal:'期刊论文',conference:'会议论文',thesis:'学位论文',book:'图书/专著',report:'报告',web:'网络资源'})[litTypeOf(l)] || '期刊论文'; }
+function litHasCJK(s){ return /[\u3400-\u9fff]/.test(String(s||'')); }
+function litAuList(l){ return litSplitAuthors(l.authors); }
+/* 西文姓名取首字母缩写：Jean-Paul → J-P */
+function litInitials(p){ return p.split('-').map(x=>x.charAt(0).toUpperCase()).join('-'); }
+/* GB/T：ZHANG Y, LI M（姓全大写+名缩写，中文名原样保留） */
+function litGbtAu(a){
+  a = String(a||'').trim().replace(/\.$/,'');
+  if(!a || litHasCJK(a)) return a;
+  const t = a.replace(/\./g,'').split(/\s+/).filter(Boolean);
+  if(!t.length) return '';
+  if(t.length===1) return t[0].toUpperCase();
+  return t[0].toUpperCase() + ' ' + t.slice(1).map(litInitials).join(' ');
+}
+function litGbtAuthors(l, max){
+  const m = max || 3;
+  const list = litAuList(l).map(litGbtAu).filter(Boolean);
+  if(!list.length) return '';
+  if(list.length > m) return list.slice(0, m).join(', ') + (litHasCJK(l.authors) ? ', 等' : ', et al');
+  return list.join(', ');
+}
+/* APA：Zhang, Y., & Li, M. */
+function litApaAu(a){
+  a = String(a||'').trim().replace(/,+$/,'');
+  if(!a || litHasCJK(a)) return a;
+  let fam, giv;
+  if(a.includes(',')){ const i = a.indexOf(','); fam = a.slice(0,i).trim(); giv = a.slice(i+1).trim(); }
+  else { const t = a.split(/\s+/); fam = t[0]; giv = t.slice(1).join(' '); }
+  const g = giv.replace(/\./g,'').split(/\s+/).filter(Boolean).map(litInitials).map(p=>p+'.').join(' ');
+  return g ? fam + ', ' + g : fam;
+}
+function litApaAuthors(l){
+  const list = litAuList(l).map(litApaAu).filter(Boolean);
+  if(!list.length) return '';
+  if(list.length===1) return list[0];
+  if(list.length===2) return list[0] + ', & ' + list[1];
+  if(list.length>20) return list.slice(0,19).join(', ') + ', …, ' + list[list.length-1];
+  return list.slice(0,-1).join(', ') + ', & ' + list[list.length-1];
+}
+/* MLA：Zhang, Y., and Li, M. / Zhang, Y., et al */
+function litMlaAuthors(l){
+  const list = litAuList(l).map(litApaAu).filter(Boolean);
+  if(!list.length) return '';
+  if(list.length===1) return list[0];
+  if(list.length===2) return list[0] + ', and ' + list[1];
+  return list[0] + ', et al';
+}
+function litEnDash(pg){ return String(pg==null?'':pg).replace(/(\d+)\s*[-–]\s*(\d+)/g, '$1–$2'); }
+/* GB/T 7714：作者. 题名[J]. 刊名, 年, 卷(期): 页码. DOI:xxx. */
+function litCiteGB(l){
+  const tag = litTypeTag(l);
+  const au = litGbtAuthors(l, 3);
+  const head = (au ? au + '. ' : '') + (l.title || '');
+  const y = l.year || '';
+  const v = l.venue || '';
+  const vol = (l.vol||'').trim(), iss = (l.issue||'').trim(), pg = (l.pages||'').trim();
+  const vi = vol ? vol + (iss ? '('+iss+')' : '') : iss;
+  const vip = (vi ? ', '+vi : '') + (pg ? ': '+pg : '');
+  let s;
+  if(tag==='C'){
+    s = head + '[C]' + (v ? '//'+v : '') + (y ? ', '+y : '') + (pg ? ': '+pg : '') + '.';
+  } else if(tag==='EB/OL'){
+    const url = l.doi ? 'https://doi.org/'+l.doi : '';
+    s = head + '[EB/OL]' + (y ? ' ('+y+')' : '') + (url ? ' ['+today()+']. '+url : '') + '.';
+  } else {
+    s = head + '['+tag+']' + (v ? '. '+v : '') + (y ? ', '+y : '') + vip + '.';
+  }
+  if(l.doi && tag!=='EB/OL') s += ' DOI:' + l.doi + '.';
+  return s;
+}
+/* APA 7：Zhang, Y., & Li, M. (2024). Title. Journal, 12(3), 45–60. https://doi.org/… */
+function litCiteAPA(l){
+  const tag = litTypeTag(l);
+  const au = litApaAuthors(l);
+  const y = l.year || 'n.d.';
+  const v = l.venue || '';
+  const title = l.title || '';
+  const vol = (l.vol||'').trim(), iss = (l.issue||'').trim(), pg = litEnDash(l.pages).trim();
+  const doiUrl = l.doi ? 'https://doi.org/'+l.doi : '';
+  const vi = (vol ? vol + (iss ? '('+iss+')' : '') : '') + (pg ? ((vol||iss) ? ', '+pg : pg) : '');
+  let s = au ? au + ' ('+y+'). ' + title : title + ' ('+y+').';
+  if(tag==='C'){
+    if(v) s += '. In ' + v;
+    if(pg) s += ' (pp. ' + pg + ')';
+    if(v || pg) s += '.';
+  } else if(tag==='D'){
+    s += ' [学位论文]' + (v ? '. '+v : '') + '.';
+  } else {
+    const tail = [v, vi].filter(Boolean).join(', ');
+    if(tail) s += '. ' + tail + '.';
+  }
+  if(doiUrl) s += ' ' + doiUrl;
+  return s;
+}
+/* MLA 9：Zhang, Y. "Title." Journal, vol. 12, no. 3, 2024, pp. 45–60. */
+function litCiteMLA(l){
+  const tag = litTypeTag(l);
+  const au = litMlaAuthors(l).replace(/\.$/,'');
+  const y = l.year || '';
+  const v = l.venue || '';
+  const vol = (l.vol||'').trim(), iss = (l.issue||'').trim(), pg = litEnDash(l.pages).trim();
+  const vi = [(vol?'vol. '+vol:''), (iss?'no. '+iss:''), y, (pg?'pp. '+pg:'')].filter(Boolean).join(', ');
+  const parts = [];
+  if(au) parts.push(au+'.');
+  if(tag==='M'){
+    if(l.title) parts.push(l.title+'.');
+    if(v && y) parts.push(v+', '+y); else if(v||y) parts.push(v||y);
+  } else if(tag==='D'){
+    if(l.title) parts.push('"'+l.title+'." [学位论文]');
+    if(v && y) parts.push(v+', '+y); else if(v||y) parts.push(v||y);
+  } else {
+    if(l.title) parts.push('"'+l.title+'."');
+    if(v) parts.push(v);
+    if(vi) parts.push(vi);
+  }
+  let s = parts.join(' ');
+  if(l.doi) s += ' https://doi.org/' + l.doi;
+  if(s && !/\.$/.test(s)) s += '.';
+  return s;
+}
+/* 自定义模板：占位符替换，模板持久化在 localStorage */
+const CITE_TPL_KEY = 'drbuddy_cite_tpl';
+const CITE_TPL_DEFAULT = '{gbtAuthors}. {title}[{tag}]. {venue}, {year}{vip}. DOI:{doi}.';
+function litGetCiteTpl(){ try{ return localStorage.getItem(CITE_TPL_KEY) || CITE_TPL_DEFAULT; }catch(e){ return CITE_TPL_DEFAULT; } }
+function litCiteMap(l){
+  const vol = (l.vol||'').trim(), iss = (l.issue||'').trim(), pg = (l.pages||'').trim();
+  const vi = vol ? vol + (iss ? '('+iss+')' : '') : iss;
+  return {
+    authors: l.authors || '',
+    gbtAuthors: litGbtAuthors(l, 3), gbtAuthorsAll: litGbtAuthors(l, 99),
+    apaAuthors: litApaAuthors(l), mlaAuthors: litMlaAuthors(l),
+    year: l.year || '', title: l.title || '', venue: l.venue || '',
+    vol: vol, issue: iss, pages: pg,
+    vip: (vi ? ', '+vi : '') + (pg ? ': '+pg : ''),
+    tag: litTypeTag(l), type: litTypeName(l),
+    doi: l.doi || '', doiUrl: l.doi ? 'https://doi.org/'+l.doi : ''
+  };
+}
+function litCiteCustom(l, tpl){
+  const m = litCiteMap(l);
+  return String(tpl==null ? '' : tpl).replace(/\{(\w+)\}/g, (w,k)=> Object.prototype.hasOwnProperty.call(m,k) ? m[k] : w);
+}
+/* 通用剪贴板复制（兼容 http 环境 / 微信内置浏览器） */
+function copyText(str, msg, evt){
+  const done = ()=>{ if(evt) track(evt.e, evt.d||{}); toast(msg || '已复制'); };
+  const fb = ()=>{
+    const ta = document.createElement('textarea');
+    ta.value = str; ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.select();
+    try{ document.execCommand('copy'); done(); }catch(e){ toast('复制失败'); }
+    document.body.removeChild(ta);
+  };
+  if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(str).then(done).catch(fb);
+  else fb();
+}
+/* 引用弹窗：格式切换 + 实时预览 + 一键复制 + 自定义模板编辑 */
+function litCiteModal(id){
+  const l = DB.literature.find(x=>x.id===id);
+  if(!l) return;
+  litCiteModal._id = id;
+  const fmt = litCiteModal._fmt || 'gb';
+  const fmts = [
+    {id:'gb',     name:'GB/T 7714-2025', desc:'国家标准著录格式，中文期刊、学位论文与毕业论文最常用'},
+    {id:'apa',    name:'APA 7',          desc:'美国心理学会第 7 版，心理学、教育学、管理学与社科常用'},
+    {id:'mla',    name:'MLA 9',          desc:'美国现代语言协会第 9 版，文学、语言学与人文学科常用'},
+    {id:'custom', name:'自定义',          desc:'用占位符自由编排你的引用格式，模板自动保存在本机'}
+  ];
+  const cur = fmts.find(f=>f.id===fmt) || fmts[0];
+  const isCustom = cur.id==='custom';
+  const tpl = litGetCiteTpl();
+  const text = isCustom ? litCiteCustom(l, tpl) : ({gb:litCiteGB, apa:litCiteAPA, mla:litCiteMLA})[cur.id](l);
+  const t = l.title || '';
+  openModal(`
+    <h3>⧉ 引用「${esc(t.slice(0,40))}${t.length>40?'…':''}」 <span class="close" onclick="closeModal()">✕</span></h3>
+    <div class="filter-row" style="margin-bottom:8px;">
+      ${fmts.map(f=>`<span class="chip ${f.id===fmt?'on':''}" onclick="litCitePick('${f.id}')">${f.name}</span>`).join('')}
+    </div>
+    <div style="font-size:12px;opacity:.6;margin-bottom:10px;line-height:1.6;">${cur.desc}</div>
+    <div id="cite_out" style="background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;font-size:14px;line-height:1.9;user-select:text;font-family:Georgia,'Times New Roman','Songti SC',serif;">${esc(text)}</div>
+    ${isCustom ? `
+    <div style="margin-top:14px;">
+      <label style="font-size:12px;opacity:.7;">自定义模板：</label>
+      <textarea id="cite_tpl" rows="3" oninput="litCitePreviewCustom()" style="width:100%;box-sizing:border-box;margin-top:6px;font-family:monospace;font-size:12px;">${esc(tpl)}</textarea>
+      <div style="font-size:11px;opacity:.55;line-height:2;margin-top:6px;">
+        {gbtAuthors} 国标作者(前三) · {gbtAuthorsAll} 国标作者(全部) · {apaAuthors} APA作者 · {mlaAuthors} MLA作者 · {authors} 原始作者 · {year} 年份 · {title} 标题 · {venue} 期刊/会议 · {tag} 类型标识(J/C/D/M/R) · {type} 类型名 · {vol} 卷 · {issue} 期 · {pages} 页码 · {vip} 卷期页 · {doi} DOI · {doiUrl} DOI链接
+      </div>
+      <div class="btn-row" style="margin-top:10px;">
+        <span class="btn sm" onclick="litCiteResetTpl()">恢复默认</span>
+        <span class="btn sm primary" onclick="litCiteSaveTpl()">保存模板</span>
+      </div>
+    </div>` : ''}
+    <div class="btn-row" style="margin-top:16px;">
+      <span class="btn" onclick="closeModal()">关闭</span>
+      <span class="btn primary" onclick="litCiteCopy()">⧉ 复制引用文本</span>
+    </div>
+  `);
+}
+function litCitePick(f){ litCiteModal._fmt = f; litCiteModal(litCiteModal._id); }
+function litCitePreviewCustom(){
+  const l = DB.literature.find(x=>x.id===litCiteModal._id);
+  const el = document.getElementById('cite_out');
+  if(!l || !el) return;
+  el.textContent = litCiteCustom(l, document.getElementById('cite_tpl').value);
+}
+function litCiteSaveTpl(){
+  try{ localStorage.setItem(CITE_TPL_KEY, document.getElementById('cite_tpl').value); }catch(e){}
+  toast('模板已保存，之后所有自定义引用都会使用它');
+}
+function litCiteResetTpl(){
+  try{ localStorage.removeItem(CITE_TPL_KEY); }catch(e){}
+  const ta = document.getElementById('cite_tpl');
+  if(ta){ ta.value = CITE_TPL_DEFAULT; }
+  litCitePreviewCustom();
+  toast('已恢复默认模板');
+}
+function litCiteCopy(){
+  const el = document.getElementById('cite_out');
+  if(!el) return;
+  copyText(el.textContent, '引用已复制，可直接粘贴到论文中', {e:'lit_cite', d:{format: litCiteModal._fmt || 'gb'}});
 }
 
 /* ============================================================
@@ -1300,7 +1548,11 @@ function mapCrossref(j){
   else if(m['event-name']) venue = m['event-name'];
   const doi = m.DOI || '';
   if(!title && !doi) return null;
-  return {title, authors, year, venue, doi, source:'CrossRef'};
+  const tmap = {'journal-article':'journal','proceedings-article':'conference','book-chapter':'book','book':'book','dissertation':'thesis','report':'report','report-component':'report','posted-content':'web','dataset':'web'};
+  return {title, authors, year, venue, doi,
+    type: tmap[m.type] || 'journal',
+    vol: m.volume || '', issue: m.issue || '', pages: m.page || '',
+    source:'CrossRef'};
 }
 /* OpenAlex work → 统一题录 */
 function mapOpenAlex(w){
@@ -1313,7 +1565,13 @@ function mapOpenAlex(w){
   let doi = w.doi || '';
   doi = doi.replace(/^https?:\/\/doi\.org\//i, '');
   if(!title && !doi) return null;
-  return {title, authors, year, venue, doi, source:'OpenAlex'};
+  const b = w.biblio || {};
+  const tmap = {'article':'journal','book-chapter':'book','book':'book','dissertation':'thesis','report':'report','proceedings-article':'conference'};
+  return {title, authors, year, venue, doi,
+    type: tmap[w.type] || 'journal',
+    vol: b.volume || '', issue: b.issue || '',
+    pages: (b.first_page && b.last_page) ? b.first_page+'-'+b.last_page : (b.first_page || ''),
+    source:'OpenAlex'};
 }
 /* PubMed esummary → 统一题录 */
 function mapPubmed(j, uid){
@@ -1325,7 +1583,9 @@ function mapPubmed(j, uid){
   const venue = r.fulljournalname || r.source || '';
   const doiEnt = (r.articleids||[]).find(x=>x.idtype==='doi');
   if(!title) return null;
-  return {title, authors, year: ym?ym[0]:'', venue, doi: doiEnt?doiEnt.value:'', source:'PubMed'};
+  return {title, authors, year: ym?ym[0]:'', venue, doi: doiEnt?doiEnt.value:'',
+    type:'journal', vol: r.volume || '', issue: r.issue || '', pages: r.pages || '',
+    source:'PubMed'};
 }
 /* 根据 meta 抓取题录：CrossRef 优先，OpenAlex 降级，PubMed 走 eutils */
 async function litFetchMeta(meta){
@@ -1418,6 +1678,7 @@ async function litDoImport(){
       DB.literature.unshift({
         id: uid(), addedAt: now(),
         title: rec.title, authors: rec.authors, year: rec.year, venue: rec.venue, doi: rec.doi,
+        type: rec.type || 'journal', vol: rec.vol || '', issue: rec.issue || '', pages: rec.pages || '',
         tags: [], status: '待读', rating: 0, notes: '', keyPoints: []
       });
       imported++;
@@ -1757,6 +2018,7 @@ pages.todo = function(){
     if(!t.due && isToday && t.createdAt && t.createdAt.slice(0,10)===today()) return true;
     return false;
   });
+  // 排序：未完成优先 → 紧急优先 → 截止日
   dayTasks.sort((a,b)=>(a.done?1:0)-(b.done?1:0)||(a.priority==='紧急'?0:1)-(b.priority==='紧急'?0:1)||(a.due||'z').localeCompare(b.due||'z'));
 
   // 逾期遗留（仅今日视图展示）
@@ -1765,7 +2027,7 @@ pages.todo = function(){
   const completed = dayTasks.filter(t=>t.done).length;
   const pct = dayTasks.length ? Math.round(completed/dayTasks.length*100) : 0;
 
-  // 过去 7 天迷你日历
+  // 过去 7 天迷你日历（按 viewDate 前后展开，可点击切换）
   const strip = [...Array(7)].map((_,i)=>{
     const d = new Date(dt); d.setDate(dt.getDate()-(6-i));
     const ds = d.toISOString().slice(0,10);
@@ -1778,17 +2040,18 @@ pages.todo = function(){
     };
   });
 
-  // 连续完成天数
+  // 连续完成天数（从今天往回数，遇到非全完即停；跳过空白日）
   let streak = 0;
   for(let i=0;i<365;i++){
     const d = new Date(); d.setDate(d.getDate()-i);
     const ds = d.toISOString().slice(0,10);
     const items = DB.todos.filter(t=>t.due===ds);
-    if(items.length===0){ if(i===0) continue; break; }
+    if(items.length===0){ if(i===0) continue; break; } // 今天空不算
     if(items.every(t=>t.done)) streak++;
     else break;
   }
 
+  // 视图：日期导航
   const dateNav = `
     <div class="day-nav">
       <span class="day-prev" onclick="tdPrevDay()">◀ 昨天</span>
@@ -1799,6 +2062,7 @@ pages.todo = function(){
       <span class="day-next" onclick="tdNextDay()">明天 ▶</span>
     </div>`;
 
+  // 视图：7天打卡条
   const weekStrip = `
     <div class="day-strip">
       <div class="day-streak" title="连续完成所有清单的天数">
@@ -1842,6 +2106,7 @@ pages.todo = function(){
 
   const dayListHTML = dayTasks.length ? renderTodoList(dayTasks,'todo') : '<div class="empty" style="padding:30px;">今天清单是空的，添加第一个目标开始吧 🚀</div>';
 
+  // GTD 过滤 chips（保留原视图）
   const chipsHTML = `
     <div class="filter-row" style="margin-top:22px;">
       ${[['all','全部'],['inbox','收件箱'],['next','下一步'],['project','项目'],['waiting','等待'],['someday','将来/也许']].map(([k,n])=>{
@@ -1853,6 +2118,7 @@ pages.todo = function(){
       <span class="btn primary sm" style="margin-left:auto;" onclick="tdModal()">+ 详细添加</span>
     </div>`;
 
+  // 完整 GTD 视图（按 chip 过滤）
   let fullListHTML = '';
   if(f==='all'){
     const others = DB.todos.filter(t=>!t.done && t.due !== viewDate && !overdue.includes(t))
