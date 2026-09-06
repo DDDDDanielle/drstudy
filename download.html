@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>下载 DRSTUDY · 研究生科研工作台</title>
+<meta name="description" content="DRSTUDY 专为研究生设计的一站式科研工作台 · 提供网页版与 Windows 桌面版 · 持续更新">
+<style>
+:root{
+  --bg:#fafaf7;
+  --bg2:#f3f1ea;
+  --paper:#ffffff;
+  --ink:#1c1c25;
+  --ink-soft:#5a5a66;
+  --muted:#8b8b94;
+  --line:#e8e4d8;
+  --indigo:#3e4a7a;
+  --indigo-soft:#5867a3;
+  --accent:#a83f2e;     /* 朱门 */
+  --accent-soft:#c0392b;
+  --jade:#4a7c6f;
+  --gold:#b58a3c;
+  --shadow:0 1px 3px rgba(0,0,0,.04), 0 12px 32px rgba(60,50,30,.08);
+  --shadow-lg:0 4px 12px rgba(0,0,0,.06), 0 28px 60px rgba(60,50,30,.14);
+  --serif:"Noto Serif SC","Source Han Serif SC","Songti SC","SimSun",serif;
+  --kai:"KaiTi","STKaiti","Noto Serif SC",serif;
+  --sans:"PingFang SC","Microsoft YaHei",-apple-system,BlinkMacSystemFont,sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  font-family:var(--sans);background:var(--bg);color:var(--ink);
+  line-height:1.7;font-size:16px;-webkit-font-smoothing:antialiased;
+}
+/* 顶栏 */
+.nav{
+  position:sticky;top:0;z-index:50;
+  background:rgba(250,250,247,.85);backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--line);
+}
+.nav-inner{max-width:1140px;margin:0 auto;padding:14px 22px;display:flex;align-items:center;gap:22px;}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--ink);font-weight:600;}
+.brand-logo{
+  width:34px;height:34px;border-radius:9px;
+  background:linear-gradient(135deg,#2c3340,#3d434e);
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--kai);color:#e8c988;font-size:19px;
+  letter-spacing:-1px;
+}
+.brand-name{font-family:var(--kai);font-size:18px;letter-spacing:.18em;}
+.brand-name small{font-family:var(--sans);font-size:11px;color:var(--muted);letter-spacing:0;margin-left:6px;font-weight:400;}
+.nav-links{display:flex;gap:6px;margin-left:24px;}
+.nav-links a{color:var(--ink-soft);text-decoration:none;font-size:14px;padding:6px 14px;border-radius:8px;}
+.nav-links a:hover{background:var(--bg2);color:var(--ink);}
+.nav-cta{margin-left:auto;display:flex;gap:10px;align-items:center;}
+.ver-badge{
+  font-size:12px;padding:3px 10px;border-radius:99px;
+  background:rgba(74,124,111,.12);color:var(--jade);
+  border:1px solid rgba(74,124,111,.25);
+}
+
+/* HERO */
+.hero{
+  position:relative;overflow:hidden;
+  padding:88px 22px 100px;text-align:center;
+  background:
+    radial-gradient(ellipse at 30% 0%, rgba(168,63,46,.06), transparent 50%),
+    radial-gradient(ellipse at 70% 30%, rgba(62,74,122,.05), transparent 55%),
+    var(--bg);
+}
+.hero::before{
+  content:"";position:absolute;top:120px;left:50%;width:600px;height:600px;
+  transform:translateX(-50%);border-radius:50%;
+  background:radial-gradient(circle,rgba(184,156,86,.05),transparent 70%);
+  pointer-events:none;
+}
+.hero-tag{
+  display:inline-block;font-size:13px;letter-spacing:.3em;
+  border:1px solid var(--line);padding:6px 16px;border-radius:99px;
+  color:var(--ink-soft);background:var(--paper);margin-bottom:24px;
+}
+h1.hero-title{
+  font-family:var(--kai);font-size:clamp(38px,6vw,58px);
+  letter-spacing:.12em;font-weight:600;line-height:1.3;color:var(--ink);
+  position:relative;z-index:1;
+}
+h1.hero-title .accent{color:var(--accent);}
+.hero-sub{
+  margin:18px auto 0;max-width:600px;
+  font-size:16.5px;color:var(--ink-soft);letter-spacing:.05em;
+}
+.hero-meta{
+  margin-top:30px;display:inline-flex;gap:24px;flex-wrap:wrap;justify-content:center;
+  font-size:13px;color:var(--muted);
+}
+.hero-meta b{color:var(--ink);font-weight:600;margin-right:4px;}
+.hero-meta .sep{color:var(--line);}
+
+/* 下载卡片 */
+.download-wrap{max-width:920px;margin:-50px auto 0;padding:0 22px;position:relative;z-index:5;}
+.dl-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+.dl-card{
+  background:var(--paper);border:1px solid var(--line);
+  border-radius:18px;padding:32px 28px 28px;
+  box-shadow:var(--shadow);position:relative;overflow:hidden;
+  transition:transform .3s,box-shadow .3s;
+}
+.dl-card:hover{transform:translateY(-3px);box-shadow:var(--shadow-lg);}
+.dl-card.featured{
+  background:linear-gradient(160deg,#1c2128 0%,#2c3340 100%);color:#f2ede0;
+  border-color:transparent;
+}
+.dl-card.featured .ico-bg{background:rgba(232,201,136,.12);color:#e8c988;}
+.dl-card.featured .ver-line{color:rgba(232,201,136,.6);}
+.dl-card.featured .ver-line b{color:#e8c988;}
+.dl-card.featured .req{color:rgba(232,237,224,.7);}
+.dl-card.featured .req li{border-color:rgba(232,237,224,.15);}
+.dl-card.featured .btn-dl{background:#e8c988;color:#1c1c25;}
+.dl-card.featured .btn-dl:hover{background:#d9b566;}
+.dl-card.featured::after{
+  content:"RECOMMENDED";position:absolute;top:18px;right:18px;
+  font-size:10.5px;letter-spacing:.2em;
+  background:rgba(232,201,136,.2);color:#e8c988;
+  padding:3px 10px;border-radius:6px;
+}
+
+.dl-head{display:flex;align-items:center;gap:14px;margin-bottom:18px;}
+.ico-bg{
+  width:50px;height:50px;border-radius:13px;
+  background:rgba(168,63,46,.1);color:var(--accent);
+  display:flex;align-items:center;justify-content:center;
+}
+.ico-bg svg{width:26px;height:26px;}
+.dl-head h3{font-family:var(--kai);font-size:22px;letter-spacing:.08em;}
+.dl-head .sub{font-size:12px;color:var(--muted);margin-top:2px;}
+.dl-card.featured .dl-head .sub{color:rgba(232,237,224,.6);}
+
+.ver-line{font-size:13px;color:var(--ink-soft);margin-bottom:18px;padding-bottom:18px;border-bottom:1px dashed var(--line);}
+.ver-line b{color:var(--ink);font-weight:600;}
+
+.req{list-style:none;font-size:13px;color:var(--ink-soft);}
+.req li{padding:6px 0;border-bottom:1px dotted var(--line);display:flex;gap:10px;align-items:center;}
+.req li:last-child{border-bottom:none;}
+.req li svg{color:var(--jade);flex:0 0 auto;}
+.dl-card.featured .req li svg{color:#7aa884;}
+
+.btn-dl{
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  width:100%;margin-top:18px;padding:13px 0;border-radius:11px;
+  font-family:var(--sans);font-size:15px;font-weight:600;
+  text-decoration:none;cursor:pointer;border:none;
+  background:var(--accent);color:#fff;
+  transition:all .2s;letter-spacing:.06em;
+}
+.btn-dl:hover{background:var(--accent-soft);transform:translateY(-1px);}
+.btn-dl svg{width:18px;height:18px;}
+.btn-dl.alt{background:var(--bg2);color:var(--ink);border:1px solid var(--line);}
+.btn-dl.alt:hover{background:#e9e5d7;}
+
+/* 二维码/补充 */
+.web-qr{
+  margin-top:14px;display:flex;align-items:center;gap:14px;
+  padding:12px;background:var(--bg2);border-radius:11px;
+  font-size:12.5px;color:var(--ink-soft);
+}
+.web-qr svg{width:54px;height:54px;color:var(--ink);flex:0 0 auto;}
+.web-qr code{font-family:Menlo,Consolas,monospace;font-size:13px;color:var(--ink);background:var(--paper);padding:3px 8px;border-radius:5px;margin-left:auto;border:1px solid var(--line);}
+
+@media(max-width:760px){.dl-grid{grid-template-columns:1fr;}}
+
+/* sections */
+section{padding:88px 0 36px;}
+.wrap{max-width:1080px;margin:0 auto;padding:0 22px;}
+.sec-head{display:flex;align-items:baseline;gap:16px;margin-bottom:36px;flex-wrap:wrap;}
+.sec-num{font-family:var(--kai);font-size:13px;color:var(--gold);letter-spacing:.3em;border:1px solid var(--gold);padding:2px 10px;border-radius:4px;}
+h2.sec-title{font-family:var(--kai);font-size:clamp(28px,4vw,36px);letter-spacing:.1em;font-weight:600;}
+
+/* features */
+.feat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px;}
+.feat{
+  background:var(--paper);border:1px solid var(--line);border-radius:14px;
+  padding:24px;box-shadow:var(--shadow);
+}
+.feat-ico{
+  width:42px;height:42px;border-radius:11px;
+  background:linear-gradient(135deg,#f5e9d8,#f0dcc0);color:var(--accent);
+  display:flex;align-items:center;justify-content:center;
+  margin-bottom:14px;
+}
+.feat-ico svg{width:22px;height:22px;}
+.feat h4{font-family:var(--kai);font-size:18px;letter-spacing:.06em;margin-bottom:6px;}
+.feat p{font-size:14px;color:var(--ink-soft);}
+
+/* 对比表 */
+.cmp{
+  background:var(--paper);border:1px solid var(--line);border-radius:16px;
+  overflow:hidden;box-shadow:var(--shadow);
+}
+.cmp table{width:100%;border-collapse:collapse;}
+.cmp th,.cmp td{padding:16px 22px;text-align:left;border-bottom:1px solid var(--line);font-size:14px;}
+.cmp th{background:var(--bg2);font-weight:600;color:var(--ink);font-family:var(--kai);letter-spacing:.08em;font-size:14px;}
+.cmp td:first-child{color:var(--ink-soft);font-weight:500;}
+.cmp td svg{color:var(--jade);width:18px;height:18px;vertical-align:middle;margin-right:4px;}
+.cmp tr:last-child td{border-bottom:none;}
+.cmp .na{color:var(--muted);}
+.cmp .na svg{color:var(--muted);}
+
+/* changelog */
+.changelog{
+  background:var(--paper);border:1px solid var(--line);border-radius:16px;
+  padding:0;box-shadow:var(--shadow);overflow:hidden;
+}
+.cl-entry{padding:22px 26px;border-bottom:1px solid var(--line);}
+.cl-entry:last-child{border-bottom:none;}
+.cl-head{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:10px;}
+.cl-tag{
+  font-family:var(--kai);font-size:13px;color:var(--accent);
+  background:rgba(168,63,46,.1);padding:3px 12px;border-radius:99px;letter-spacing:.04em;
+}
+.cl-tag.new{background:rgba(74,124,111,.12);color:var(--jade);}
+.cl-tag.fix{background:rgba(181,138,60,.12);color:var(--gold);}
+.cl-date{font-size:12.5px;color:var(--muted);font-family:Menlo,Consolas,monospace;}
+.cl-list{margin:8px 0 0;padding-left:20px;}
+.cl-list li{font-size:14px;color:var(--ink-soft);padding:3px 0;list-style-type:'– ';}
+.cl-list li b{color:var(--ink);font-weight:600;}
+
+/* FAQ */
+.faq{display:flex;flex-direction:column;gap:12px;}
+.faq details{
+  background:var(--paper);border:1px solid var(--line);border-radius:12px;
+  padding:0;box-shadow:var(--shadow);transition:all .2s;
+}
+.faq details[open]{border-color:var(--accent);}
+.faq summary{
+  cursor:pointer;padding:18px 22px;font-size:14.5px;font-weight:600;
+  list-style:none;display:flex;align-items:center;gap:10px;color:var(--ink);
+}
+.faq summary::-webkit-details-marker{display:none;}
+.faq summary::before{
+  content:"+";font-family:var(--kai);font-size:22px;color:var(--accent);
+  width:22px;flex:0 0 auto;transition:transform .2s;
+}
+.faq details[open] summary::before{transform:rotate(45deg);}
+.faq p{padding:0 22px 18px 50px;font-size:14px;color:var(--ink-soft);}
+.faq p code{font-family:Menlo,Consolas,monospace;background:var(--bg2);padding:1px 6px;border-radius:4px;font-size:13px;color:var(--accent);}
+
+/* cta band */
+.cta-band{
+  margin:88px 22px 0;padding:60px 22px;text-align:center;
+  background:linear-gradient(135deg,#1c2128 0%,#2c3340 100%);
+  color:#f2ede0;border-radius:18px;position:relative;overflow:hidden;
+}
+.cta-band::before{
+  content:"";position:absolute;top:-50%;left:-10%;width:120%;height:200%;
+  background:radial-gradient(ellipse at center,rgba(232,201,136,.08),transparent 60%);
+}
+.cta-band h2{
+  font-family:var(--kai);font-size:clamp(26px,4vw,34px);letter-spacing:.12em;
+  margin-bottom:14px;position:relative;
+}
+.cta-band p{color:rgba(232,237,224,.7);margin-bottom:24px;position:relative;}
+.cta-band .btn-dl{
+  display:inline-flex;width:auto;padding:14px 36px;font-size:15px;
+  background:#e8c988;color:#1c1c25;position:relative;
+}
+.cta-band .btn-dl:hover{background:#d9b566;}
+.cta-band .alt-link{
+  color:rgba(232,237,224,.65);font-size:13px;margin-left:18px;
+  text-decoration:underline;position:relative;
+}
+.cta-band .alt-link:hover{color:#e8c988;}
+
+/* footer */
+footer{
+  margin-top:70px;padding:50px 22px 40px;text-align:center;
+  background:var(--bg2);color:var(--ink-soft);font-size:13px;
+}
+footer .brand-name{margin-bottom:12px;}
+footer p{margin-top:8px;}
+footer .links{margin-top:14px;display:flex;gap:18px;justify-content:center;flex-wrap:wrap;}
+footer .links a{color:var(--ink-soft);text-decoration:none;font-size:13px;}
+footer .links a:hover{color:var(--accent);}
+footer .copy{margin-top:18px;color:var(--muted);font-size:12px;}
+</style>
+</head>
+<body>
+
+<!-- 顶部导航 -->
+<nav class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="/">
+      <div class="brand-logo">崇</div>
+      <div>
+        <div class="brand-name">DRSTUDY<small>v16 · 2026.09</small></div>
+      </div>
+    </a>
+    <div class="nav-links">
+      <a href="#download">下载</a>
+      <a href="#features">功能</a>
+      <a href="#compare">对比</a>
+      <a href="#changelog">更新日志</a>
+      <a href="#faq">常见问题</a>
+    </div>
+    <div class="nav-cta">
+      <span class="ver-badge">● 持续更新</span>
+    </div>
+  </div>
+</nav>
+
+<!-- HERO -->
+<header class="hero">
+  <span class="hero-tag">研 究 生 科 研 工 作 台</span>
+  <h1 class="hero-title">把 碎 片 化 的 研 究 生 活<br><span class="accent">装 进 一 个 工 作 台</span></h1>
+  <p class="hero-sub">从文献到论文，从里程碑到导师汇报，从每日清单到文献导出<br>DRSTUDY 专为非计算机专业的研究生设计，开箱即用，全程离线也能跑</p>
+  <div class="hero-meta">
+    <span><b>1.5 万</b>字源码</span><span class="sep">·</span>
+    <span><b>0</b>广告</span><span class="sep">·</span>
+    <span><b>免费</b>核心功能</span><span class="sep">·</span>
+    <span><b>跨平台</b>网页 + Windows</span>
+  </div>
+</header>
+
+<!-- 下载卡片 -->
+<div class="download-wrap" id="download">
+  <div class="dl-grid">
+    <!-- 网页版 -->
+    <div class="dl-card">
+      <div class="dl-head">
+        <div class="ico-bg">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>
+        </div>
+        <div>
+          <h3>网页版</h3>
+          <div class="sub">任何设备 · 浏览器打开即用</div>
+        </div>
+      </div>
+      <div class="ver-line">当前版本 <b>v16 · 2026.09</b> · 实时同步</div>
+      <ul class="req">
+        <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg>无需安装，立即可用</li>
+        <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg>Chrome / Edge / Safari / Firefox</li>
+        <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg>数据云端加密同步</li>
+        <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg>支持手机 / 平板访问</li>
+      </ul>
+      <a href="https://drstudy.cn/" class="btn-dl alt" target="_blank">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 17L17 7M9 7h8v8"/></svg>
+        打开 drstudy.cn
+      </a>
+      <div class="web-qr">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M5 5h3M5 7h3M5 9h1M16 5h3M16 9h1M19 16v3v3M16 19h3M5 16v3M16 16h2v2"/></svg>
+        <div>手机扫码访问<br>或浏览器输入</div>
+        <code>drstudy.cn</code>
+      </div>
+    </div>
+
+    <!-- 桌面版（推荐） -->
+    <div class="dl-card featured">
+      <div class="dl-head">
+        <div class="ico-bg">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4M6 7h4M6 10h6"/></svg>
+        </div>
+        <div>
+          <h3>桌面版</h3>
+          <div class="sub">Windows · 像原生 App 一样</div>
+        </div>
+      </div>
+      <div class="ver-line">当前版本 <b>v16 · 2026.09</b> · 14.8 MB · 单文件</div>
+      <ul class="req">
+        <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg>Windows 10 / 11（64 位）</li>
+        <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg>内置 WebView2，无需额外安装</li>
+        <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg>数据本地存储（AppData）</li>
+        <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg>可登录云端账号同步数据</li>
+      </ul>
+      <a href="https://github.com/DDDDDanielle/drstudy/releases/latest/download/DRSTUDY.exe" class="btn-dl">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 4v12M7 11l5 5 5-5M5 20h14"/></svg>
+        下载 DRSTUDY.exe
+      </a>
+      <div class="web-qr" style="background:rgba(255,255,255,.06);border:1px solid rgba(232,237,224,.12);">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M9 12l2 2 4-4"/></svg>
+        <div>下载后双击运行<br>建议右键「以管理员身份启动」</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 功能 -->
+<section id="features">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="sec-num">壹</span>
+      <h2 class="sec-title">一个工作台 · 解决八件事事</h2>
+    </div>
+    <div class="feat-grid">
+      <div class="feat">
+        <div class="feat-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></div>
+        <h4>文献管理</h4>
+        <p>DOI/arXiv/PubMed 一键抓题录，BibTeX/RIS/EndNote/CSV 四种引用格式导出，会议/期刊自动区分。</p>
+      </div>
+      <div class="feat">
+        <div class="feat-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 8v4l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/></svg></div>
+        <h4>每日清单</h4>
+        <p>日积月累式打卡 · 日期导航 · 7 天连续记录 · 逾期自动迁移 · 与 GTD 流程无缝衔接。</p>
+      </div>
+      <div class="feat">
+        <div class="feat-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 17l6-6 4 4 8-8M14 7h7v7"/></svg></div>
+        <h4>论文写作追踪</h4>
+        <p>学位论文章节进度 · 小论文状态流转 · 写作字数目标 · 倒计时可视化。</p>
+      </div>
+      <div class="feat">
+        <div class="feat-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-7h6v7"/></svg></div>
+        <h4>里程碑与汇报</h4>
+        <p>开题 / 中期 / 答辩节点提醒 · 导师汇报周期管理 · 智能提示今日该做什么。</p>
+      </div>
+      <div class="feat">
+        <div class="feat-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 11l3 3 8-8"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
+        <h4>实验与数据</h4>
+        <p>实验记录 · 数据集管理 · CSV 导入导出 · 配合本地 Python / Origin / SPSS 工作流。</p>
+      </div>
+      <div class="feat">
+        <div class="feat-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+        <h4>成果与简历</h4>
+        <p>论文 / 专利 / 获奖 / 技能 / 学术服务 · 一键导出标准学术简历文本。</p>
+      </div>
+      <div class="feat">
+        <div class="feat-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div>
+        <h4>番茄钟与日历</h4>
+        <p>内置番茄工作法 · 日历视图 · 专注时段统计与历史回放。</p>
+      </div>
+      <div class="feat">
+        <div class="feat-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+        <h4>本地优先</h4>
+        <p>所有数据本地存储，可选云端加密同步。断网也能用，账号数据绝不外泄。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 对比表 -->
+<section id="compare">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="sec-num">贰</span>
+      <h2 class="sec-title">网页版 vs 桌面版</h2>
+    </div>
+    <div class="cmp">
+      <table>
+        <tr><th style="width:40%;">功能</th><th style="width:30%;">网页版</th><th style="width:30%;">桌面版</th></tr>
+        <tr><td>立即使用，无需安装</td><td><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg>支持</td><td><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg>支持</td></tr>
+        <tr><td>数据本地存储</td><td class="na">浏览器 LocalStorage</td><td><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg>本地 AppData</td></tr>
+        <tr><td>离线使用</td><td class="na"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M6 18L18 6"/></svg>需联网</td><td><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg>完全离线</td></tr>
+        <tr><td>多账号切换</td><td><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg>支持</td><td><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg>支持</td></tr>
+        <tr><td>云端加密同步</td><td><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg>支持</td><td><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg>支持</td></tr>
+        <tr><td>系统快捷键 / 全局</td><td class="na"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M6 18L18 6"/></svg>无</td><td><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg>支持</td></tr>
+        <tr><td>无浏览器标签干扰</td><td class="na"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M6 18L18 6"/></svg>有</td><td><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12l5 5L20 7"/></svg>无</td></tr>
+        <tr><td>服务端口</td><td>—</td><td>127.0.0.1:52730</td></tr>
+        <tr><td>体积</td><td>0</td><td>~14.8 MB</td></tr>
+        <tr><td>推荐场景</td><td>临时试用 / 跨设备</td><td>日常主力 / 重度使用</td></tr>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- 更新日志 -->
+<section id="changelog">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="sec-num">叁</span>
+      <h2 class="sec-title">更新日志</h2>
+    </div>
+    <div class="changelog">
+      <div class="cl-entry">
+        <div class="cl-head">
+          <span class="cl-tag new">v16 · 2026.09</span>
+          <span class="cl-date">2026-09-06</span>
+        </div>
+        <ul class="cl-list">
+          <li><b>每日清单</b>全新上线：日期导航、7 天打卡条、连续天数统计、逾期自动迁移、快速添加</li>
+          <li>桌面版下载页（drstudy.cn/download.html）上线</li>
+          <li>激活码兑换入口恢复 · 6 套餐制商业化</li>
+          <li>Service Worker 缓存问题彻底修复（exe 永久禁 SW + 主动清缓存）</li>
+          <li>WebView2 缓存兼容性提升</li>
+        </ul>
+      </div>
+      <div class="cl-entry">
+        <div class="cl-head">
+          <span class="cl-tag">v15 · 2026.09</span>
+          <span class="cl-date">2026-09-01</span>
+        </div>
+        <ul class="cl-list">
+          <li><b>文献导出</b>支持 BibTeX / RIS / EndNote XML / CSV 四种格式</li>
+          <li><b>文献导入</b>支持 DOI / arXiv / PubMed / URL 一键抓取</li>
+          <li><b>文献页面渲染崩溃修复</b>（数据规范化防御）</li>
+        </ul>
+      </div>
+      <div class="cl-entry">
+        <div class="cl-head">
+          <span class="cl-tag">v14 · 2026.08</span>
+          <span class="cl-date">2026-08-30</span>
+        </div>
+        <ul class="cl-list">
+          <li><b>6 套餐商业化</b>：个人免费 / 进阶 / 高阶 / 旗舰 / 团队 / 企业版</li>
+          <li><b>收款码 + 订单提交</b>集成支付宝经营码</li>
+          <li>云函数 recordPay + queryPlanStatus 新增</li>
+        </ul>
+      </div>
+      <div class="cl-entry">
+        <div class="cl-head">
+          <span class="cl-tag fix">v13 · 2026.08</span>
+          <span class="cl-date">2026-08-28</span>
+        </div>
+        <ul class="cl-list">
+          <li>账号体系升级 · SHA-256 加密替代 DJB2</li>
+          <li>云端数据同步性能优化</li>
+          <li>文献排序 & 筛选功能</li>
+        </ul>
+      </div>
+      <div class="cl-entry">
+        <div class="cl-head">
+          <span class="cl-tag">v12 · 2026.08</span>
+          <span class="cl-date">2026-08-25</span>
+        </div>
+        <ul class="cl-list">
+          <li><b>pywebview 桌面壳</b>正式发布 · 端口 52730 · 单实例锁</li>
+          <li>Service Worker 离线缓存支持</li>
+          <li>11 个核心模块重构为单页应用</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section id="faq">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="sec-num">肆</span>
+      <h2 class="sec-title">常见问题</h2>
+    </div>
+    <div class="faq">
+      <details open>
+        <summary>桌面版和网页版数据互通吗？</summary>
+        <p>互通。注册账号后，在任意一端登录，数据会通过云函数自动加密同步。账号使用 SHA-256 + 随机盐存储，本地缓存离线可用。</p>
+      </details>
+      <details>
+        <summary>为什么桌面版要「以管理员身份启动」？</summary>
+        <p>桌面版会把用户数据写入 <code>%APPDATA%/DRSTUDY/</code> 目录。如果该路径受权限保护（例如某些学校机房），需要以管理员身份启动一次以建立目录，之后可正常启动。</p>
+      </details>
+      <details>
+        <summary>需要 WebView2 吗？</summary>
+        <p>Windows 10 1809 / Windows 11 系统通常已自带 WebView2 运行时。如果启动时提示缺失，访问 <code>https://developer.microsoft.com/microsoft-edge/webview2/</code> 下载「Evergreen Standalone Installer」即可。</p>
+      </details>
+      <details>
+        <summary>数据会丢失吗？</summary>
+        <p>本地数据由浏览器/AppData 持久化保存，正常卸载或升级不会丢失。建议在「设置 - 数据」中定期导出 JSON 备份。云端同步走的是 CloudBase，付费套餐享受跨设备同步。</p>
+      </details>
+      <details>
+        <summary>如何从旧版本升级？</summary>
+        <p>网页版：浏览器 <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>R</kbd> 强刷即可。桌面版：下载新版 exe 覆盖即可，旧版本请从 <code>dist_v15/</code> 之前的目录删除，避免误启动旧缓存。</p>
+      </details>
+      <details>
+        <summary>6 套餐和免费版的区别？</summary>
+        <p>免费版已经能完整使用所有功能（无任何功能阉割），付费主要解锁：云端跨设备同步、更长久的云端备份（默认仅 30 天）、优先技术支持。学术用途建议先用免费版。</p>
+      </details>
+      <details>
+        <summary>macOS / Linux 何时支持？</summary>
+        <p>macOS 版正在适配（基于 pywebview + WebKit），预计 v18 灰度。Linux 因 WebView2 不可用，暂不发布独立桌面版，建议使用网页版。</p>
+      </details>
+      <details>
+        <summary>代码开源吗？</summary>
+        <p>暂未完全开源，但所有功能均可通过浏览器 DevTools 查看源码（单文件 HTML，3043 行）。如果对某个模块的实现感兴趣，可以在 GitHub Issues 留言。</p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<div class="cta-band">
+  <h2>开始你的第一个工作日</h2>
+  <p>无需注册 · 无需付费 · 无需联网 · 打开即用</p>
+  <a href="https://drstudy.cn/" class="btn-dl" target="_blank">
+    打开网页版
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 17L17 7M9 7h8v8"/></svg>
+  </a>
+  <a href="https://github.com/DDDDDanielle/drstudy/releases/latest/download/DRSTUDY.exe" class="alt-link">或下载 Windows 桌面版</a>
+</div>
+
+<!-- footer -->
+<footer>
+  <div class="brand-name">DRSTUDY</div>
+  <p>为非专家用户设计的科研工作台 · 代码自 2026 年 6 月迭代至今</p>
+  <div class="links">
+    <a href="https://drstudy.cn/">网页版</a>
+    <a href="https://github.com/DDDDDanielle/drstudy" target="_blank">GitHub</a>
+    <a href="#changelog">更新日志</a>
+    <a href="#faq">常见问题</a>
+    <a href="https://drstudy.cn/?page=settings">商务合作</a>
+  </div>
+  <p class="copy">© 2026 DRSTUDY · 免费版可永久使用 · 不收集任何个人信息</p>
+</footer>
+
+<script>
+// 平滑滚动
+document.querySelectorAll('a[href^="#"]').forEach(a=>{
+  a.addEventListener('click',e=>{
+    const t=document.querySelector(a.getAttribute('href'));
+    if(t){e.preventDefault();t.scrollIntoView({behavior:'smooth',block:'start'});}
+  });
+});
+// 检测下载按钮是否可达（exe 文件存在性）
+fetch('https://github.com/DDDDDanielle/drstudy/releases/latest/download/DRSTUDY.exe',{method:'HEAD',mode:'no-cors'})
+  .catch(()=>{}); // silent
+</script>
+</body>
+</html>
